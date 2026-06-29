@@ -2,20 +2,25 @@ import sys
 import ctypes
 import win32gui
 import win32con
-import win32api  # Sicherer Import für OS-Abfragen
+import win32api
 
 from PyQt6.QtWidgets import QApplication, QWidget
 from PyQt6.QtCore import Qt, QTimer, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
-# ─── DPI AWARENESS ──────────────────────────────────────────────────────────
+# ─── DPI AWARENESS (Abgesichert gegen Stack-Crashes) ─────────────────────────
 try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
-except OSError:
-    ctypes.windll.user32.SetProcessDPIAware()
+    shcore = ctypes.windll.shcore
+    shcore.SetProcessDpiAwareness.argtypes = [ctypes.c_int]
+    shcore.SetProcessDpiAwareness.restype = ctypes.c_long
+    shcore.SetProcessDpiAwareness(2)
+except (OSError, AttributeError):
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except AttributeError:
+        pass
 
 # ─── WIN32 KONSTANTEN ────────────────────────────────────────────────────────
-GWL_EXSTYLE = -20
 WS_EX_NOACTIVATE = 0x08000000
 WS_EX_TOOLWINDOW = 0x00000080
 
@@ -27,7 +32,7 @@ SWP_FLAGS = (
 )
 
 
-# ─── STABILE API HELPER (KEIN CTYPES CRASH MEHR) ─────────────────────────────
+# ─── STABILE API HELPER ───────────────────────────────────────────────────────
 def get_screen_geometry() -> tuple[int, int, int, int]:
     """Holt die Geometrie der primären Arbeitsfläche ohne ctypes-Risiko."""
     hmon = win32api.MonitorFromPoint((0, 0), win32con.MONITOR_DEFAULTTOPRIMARY)
@@ -50,10 +55,9 @@ def is_real_fullscreen() -> bool:
         r = win32gui.GetWindowRect(hwnd)
         fx, fy, fw, fh = r[0], r[1], r[2] - r[0], r[3] - r[1]
 
-        # Monitor direkt aus dem Fenster-Handle ermitteln
         hmon = win32api.MonitorFromWindow(hwnd, win32con.MONITOR_DEFAULTTONEAREST)
         info = win32api.GetMonitorInfo(hmon)
-        mr = info['Monitor']  # Gesamter Monitor inkl. Taskleiste
+        mr = info['Monitor']
         mw = mr[2] - mr[0]
         mh = mr[3] - mr[1]
 
@@ -99,9 +103,11 @@ class NothingDock(QWidget):
 
     def _apply_win32_styles(self):
         self._hwnd = int(self.winId())
-        ex_style = ctypes.windll.user32.GetWindowLongW(self._hwnd, GWL_EXSTYLE)
+
+        # PURE WIN32GUI: Verhindert die x64-Bit Memory Truncation (Crash-Ursache)
+        ex_style = win32gui.GetWindowLong(self._hwnd, win32con.GWL_EXSTYLE)
         new_style = ex_style | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
-        ctypes.windll.user32.SetWindowLongW(self._hwnd, GWL_EXSTYLE, new_style)
+        win32gui.SetWindowLong(self._hwnd, win32con.GWL_EXSTYLE, new_style)
 
         win32gui.SetWindowPos(
             self._hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
@@ -189,11 +195,9 @@ class NothingDock(QWidget):
 
     def trigger_add_idea(self):
         print("[Daemon] Trigger: Add Idea Function")
-        # Hier deine Add-Window-Klasse/Logik einbauen
 
     def trigger_show_ideas(self):
         print("[Daemon] Trigger: Show Ideas Function")
-        # Hier deine Listen-Window-Klasse/Logik einbauen
 
 
 # ─── ENTRY POINT ───────────────────────────────────────────────────────────────
