@@ -16,13 +16,13 @@ newidea = input("Enter your Idea: ")
 
 nid = newidea
 
-
+datenbank = {}
+# Example
 # 3. Deine Formel angewendet: Wir fügen das Dictionary direkt unter der Zahl ein
-["neues_dict" + str(coid)] = {
-    "Name of Idea": "Smart Trash Can",
-    "Description": "Ein Mülleimer, der Chips-Tüten automatisch scannt und nachbestellt."
+datenbank[f"Idea{coid}"] = {
+    "Name of Idea": "WLAN Kaffeemaschine",
+    "Description": "Brüht Kaffee, wenn der PC startet."
 }
-
 # Wenn du jetzt das Haupt-Dictionary druckst:
 print(datenbank)
 
