@@ -1,11 +1,22 @@
 import tkinter as tk
-from tkinter import messagebox, scrolledtext
+from tkinter import messagebox
 import json
 import os
 import datetime
 
+# --- SYSTEM FARBEN & FONTS (Nothing Style) ---
+BG_COLOR = "#000000"  # Tiefschwarz
+FG_COLOR = "#FFFFFF"  # Reinweiß
+ACCENT_COLOR = "#FF0044"  # Nothing-Signalrot
+CARD_BG = "#111111"  # Dunkelgrau für die Ideen-Boxen
 
-# --- LOGIK (Dein alter Code, angepasst an GUI) ---
+FONT_TITLE = ("Courier", 24, "bold")
+FONT_SUBTITLE = ("Courier", 12, "italic")
+FONT_REGULAR = ("Courier", 10)
+FONT_BOLD = ("Courier", 10, "bold")
+
+
+# --- LOGIK ---
 
 def load_database():
     if os.path.exists("database.json"):
@@ -23,21 +34,20 @@ def save_to_json(data):
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 
-# --- GUI KLASSE ---
+# --- GUI MAIN APPLICATION ---
 
 class IdeaPadApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("IdeaPad - Alpha")
-        self.root.geometry("600x500")
+        self.root.title("IdeaPad // OS.1")
+        self.root.geometry("600x550")
+        self.root.configure(bg=BG_COLOR)
 
-        # Container für die verschiedenen Seiten
-        self.container = tk.Frame(self.root)
+        self.container = tk.Frame(self.root, bg=BG_COLOR)
         self.container.pack(fill="both", expand=True)
 
         self.frames = {}
 
-        # Erstelle alle Seiten aus deiner Skizze
         for F in (MainMenu, AddIdeaPage, ShowIdeasPage):
             page_name = F.__name__
             frame = F(parent=self.container, controller=self)
@@ -49,55 +59,75 @@ class IdeaPadApp:
     def show_frame(self, page_name):
         frame = self.frames[page_name]
         if page_name == "ShowIdeasPage":
-            frame.refresh_list()  # Liste jedes Mal neu laden
+            frame.refresh_list()
         frame.tkraise()
 
 
-# --- 1. SEITE: MAIN MENU (Oben Links in deiner Skizze) ---
+# --- 1. MAIN MENU (Nothing Redesign) ---
 
 class MainMenu(tk.Frame):
     def __init__(self, parent, controller):
-        super().__init__(parent)
-        label = tk.Label(self, text="IdeaPad", font=("Arial", 30, "bold"))
-        label.pack(pady=40)
+        super().__init__(parent, bg=BG_COLOR)
 
-        btn_add = tk.Button(self, text="Add Idea", width=20, height=2,
-                            command=lambda: controller.show_frame("AddIdeaPage"))
-        btn_add.pack(pady=10)
+        # Titel im Pixel/Coding-Look
+        label = tk.Label(self, text="IdeaPad_.", font=FONT_TITLE, fg=FG_COLOR, bg=BG_COLOR)
+        label.pack(pady=(60, 5))
 
-        btn_show = tk.Button(self, text="Show Ideas", width=20, height=2,
-                             command=lambda: controller.show_frame("ShowIdeasPage"))
-        btn_show.pack(pady=10)
+        subtitle = tk.Label(self, text="v2.0 // BY JOJO", font=FONT_SUBTITLE, fg=ACCENT_COLOR, bg=BG_COLOR)
+        subtitle.pack(pady=(0, 40))
 
-        btn_exit = tk.Button(self, text="Exit", width=20, height=2, command=parent.quit)
-        btn_exit.pack(pady=10)
+        # Stylische, flache Buttons mit weißem Rahmen
+        btn_style = {
+            "font": FONT_REGULAR, "fg": FG_COLOR, "bg": BG_COLOR,
+            "activebackground": FG_COLOR, "activeforeground": BG_COLOR,
+            "bd": 1, "relief": "solid", "width": 25, "height": 2
+        }
+
+        tk.Button(self, text="[+ Add a new Idea ]", command=lambda: controller.show_frame("AddIdeaPage"),
+                  **btn_style).pack(pady=10)
+        tk.Button(self, text="[= Show Ideas     ]", command=lambda: controller.show_frame("ShowIdeasPage"),
+                  **btn_style).pack(pady=10)
+
+        # Exit Button in Signalrot
+        exit_style = btn_style.copy()
+        exit_style.update({"fg": ACCENT_COLOR, "activebackground": ACCENT_COLOR, "activeforeground": FG_COLOR})
+        tk.Button(self, text="[x Exit Program   ]", command=parent.quit, **exit_style).pack(pady=10)
 
 
-# --- 2. SEITE: ADD IDEA (Oben Rechts in deiner Skizze) ---
+# --- 2. ADD IDEA PAGE (Nothing Redesign) ---
 
 class AddIdeaPage(tk.Frame):
     def __init__(self, parent, controller):
-        super().__init__(parent)
+        super().__init__(parent, bg=BG_COLOR)
         self.controller = controller
 
-        tk.Label(self, text="IdeaPad - Add Idea", font=("Arial", 14)).pack(pady=10)
+        tk.Label(self, text="// ADD_NEW_IDEA", font=FONT_TITLE, fg=FG_COLOR, bg=BG_COLOR).pack(pady=20)
 
-        tk.Label(self, text="Enter Idea Name:").pack()
-        self.entry_name = tk.Entry(self, width=50)
-        self.entry_name.pack(pady=5)
+        # Name Input
+        tk.Label(self, text="ENTER IDEA NAME:", font=FONT_BOLD, fg=ACCENT_COLOR, bg=BG_COLOR).pack(anchor="w", padx=50)
+        self.entry_name = tk.Entry(self, font=FONT_REGULAR, fg=FG_COLOR, bg=CARD_BG, insertbackground=FG_COLOR, bd=1,
+                                   relief="solid", width=50)
+        self.entry_name.pack(pady=(5, 20), ipady=5)
 
-        tk.Label(self, text="Describe the Idea:").pack()
-        self.text_desc = tk.Text(self, width=50, height=10)
+        # Description Input
+        tk.Label(self, text="DESCRIBE THE IDEA:", font=FONT_BOLD, fg=ACCENT_COLOR, bg=BG_COLOR).pack(anchor="w",
+                                                                                                     padx=50)
+        self.text_desc = tk.Text(self, font=FONT_REGULAR, fg=FG_COLOR, bg=CARD_BG, insertbackground=FG_COLOR, bd=1,
+                                 relief="solid", width=50, height=8)
         self.text_desc.pack(pady=5)
 
-        # Buttons unten
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(fill="x", side="bottom", pady=20)
+        # Nav-Buttons am unteren Rand
+        btn_frame = tk.Frame(self, bg=BG_COLOR)
+        btn_frame.pack(fill="x", side="bottom", pady=30, padx=50)
 
-        tk.Button(btn_frame, text="Back", command=lambda: controller.show_frame("MainMenu")).pack(side="left", padx=20)
-        tk.Button(btn_frame, text="Save Idea", command=self.save_idea).pack(side="right", padx=20)
+        nav_style = {"font": FONT_REGULAR, "bg": BG_COLOR, "bd": 1, "relief": "solid", "height": 2,
+                     "activebackground": FG_COLOR, "activeforeground": BG_COLOR}
 
-        # DEIN SHORTCUT: Shift + Enter zum Speichern
+        tk.Button(btn_frame, text="< BACK", fg=FG_COLOR, width=12, command=lambda: controller.show_frame("MainMenu"),
+                  **nav_style).pack(side="left")
+        tk.Button(btn_frame, text="[ SAVE_IDEA ]", fg=ACCENT_COLOR, width=15, command=self.save_idea, **nav_style).pack(
+            side="right")
+
         self.text_desc.bind("<Shift-Return>", lambda event: self.save_idea())
 
     def save_idea(self):
@@ -105,7 +135,7 @@ class AddIdeaPage(tk.Frame):
         desc = self.text_desc.get("1.0", "end-1c")
 
         if name.strip() == "":
-            messagebox.showwarning("Fehler", "Bitte gib einen Namen ein!")
+            messagebox.showwarning("System Error", "Idea name cannot be empty.")
             return
 
         db = load_database()
@@ -119,31 +149,34 @@ class AddIdeaPage(tk.Frame):
         }
 
         save_to_json(db)
-        messagebox.showinfo("Erfolg", "Idee gespeichert!")
 
-        # Felder leeren und zurück
         self.entry_name.delete(0, "end")
         self.text_desc.delete("1.0", "end")
         self.controller.show_frame("MainMenu")
 
 
-# --- 3. SEITE: SHOW IDEAS (Unten Links in deiner Skizze) ---
+# --- 3. SHOW IDEAS PAGE (Nothing Redesign) ---
 
 class ShowIdeasPage(tk.Frame):
     def __init__(self, parent, controller):
-        super().__init__(parent)
+        super().__init__(parent, bg=BG_COLOR)
         self.controller = controller
 
         # Header
-        header = tk.Frame(self)
-        header.pack(fill="x")
-        tk.Button(header, text="< Go Back", command=lambda: controller.show_frame("MainMenu")).pack(side="left", padx=10)
-        tk.Label(header, text="Your Ideas", font=("Arial", 12, "bold")).pack(side="left", padx=50)
+        header = tk.Frame(self, bg=BG_COLOR)
+        header.pack(fill="x", pady=20, padx=20)
 
-        # Scrollbarer Bereich für Ideen
-        self.canvas = tk.Canvas(self)
-        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = tk.Frame(self.canvas)
+        tk.Button(header, text="< BACK", font=FONT_REGULAR, fg=FG_COLOR, bg=BG_COLOR,
+                  activebackground=FG_COLOR, activeforeground=BG_COLOR, bd=1, relief="solid",
+                  command=lambda: controller.show_frame("MainMenu")).pack(side="left", padx=10)
+
+        tk.Label(header, text="// STORAGE_ALL", font=FONT_TITLE, fg=ACCENT_COLOR, bg=BG_COLOR).pack(side="right",
+                                                                                                    padx=10)
+
+        # Scrollbarer Bereich komplett in Schwarz gehalten
+        self.canvas = tk.Canvas(self, bg=BG_COLOR, highlightthickness=0)
+        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview, bg=BG_COLOR)
+        self.scrollable_frame = tk.Frame(self.canvas, bg=BG_COLOR)
 
         self.scrollable_frame.bind(
             "<Configure>",
@@ -153,34 +186,41 @@ class ShowIdeasPage(tk.Frame):
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.pack(side="left", fill="both", expand=True, padx=(20, 0))
         self.scrollbar.pack(side="right", fill="y")
 
     def refresh_list(self):
-        # Bestehende Liste löschen
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
 
         db = load_database()
         if not db:
-            tk.Label(self.scrollable_frame, text="Keine Ideen vorhanden.").pack(pady=20)
+            tk.Label(self.scrollable_frame, text="NO IDEAS SAVED_.", font=FONT_REGULAR, fg=ACCENT_COLOR,
+                     bg=BG_COLOR).pack(pady=40)
             return
 
         for idea_id, data in db.items():
-            # Ein Rahmen pro Idee (wie in deiner Skizze)
-            frame = tk.Frame(self.scrollable_frame, bd=1, relief="solid", padx=10, pady=10)
-            frame.pack(fill="x", padx=10, pady=5)
+            # Karten im "Nothing Phone-Case" Look: Dunkles Grau, dünner weißer Rahmen
+            frame = tk.Frame(self.scrollable_frame, bg=CARD_BG, bd=1, relief="solid", padx=15, pady=15)
+            frame.pack(fill="x", padx=10, pady=8)
 
-            tk.Label(frame, text=data["Name of Idea"], font=("Arial", 10, "bold")).pack(anchor="w")
-            tk.Label(frame, text=data["Description"], wraplength=400, justify="left").pack(anchor="w")
+            # Details
+            tk.Label(frame, text=f"ID: {idea_id} // {data.get('Date and Time', '-')}", font=FONT_SUBTITLE,
+                     fg=ACCENT_COLOR, bg=CARD_BG).pack(anchor="w")
+            tk.Label(frame, text=data["Name of Idea"].upper(), font=FONT_TITLE, fg=FG_COLOR, bg=CARD_BG).pack(
+                anchor="w", pady=(5, 10))
+            tk.Label(frame, text=data["Description"], font=FONT_REGULAR, fg=FG_COLOR, bg=CARD_BG, wraplength=450,
+                     justify="left").pack(anchor="w")
 
-            # Buttons Edit/Delete
-            btn_f = tk.Frame(frame)
-            btn_f.pack(anchor="e")
-            tk.Button(btn_f, text="Delete", fg="red", command=lambda i=idea_id: self.delete_idea(i)).pack(side="right")
+            # Delete Knopf als minimalistisches [X]
+            btn_f = tk.Frame(frame, bg=CARD_BG)
+            btn_f.pack(anchor="e", pady=(10, 0))
+            tk.Button(btn_f, text="[ DELETE ]", font=FONT_REGULAR, fg=ACCENT_COLOR, bg=CARD_BG,
+                      activebackground=ACCENT_COLOR, activeforeground=FG_COLOR, bd=0, cursor="hand2",
+                      command=lambda i=idea_id: self.delete_idea(i)).pack(side="right")
 
     def delete_idea(self, idea_id):
-        if messagebox.askyesno("Löschen", "Idee wirklich entfernen?"):
+        if messagebox.askyesno("SYSTEM", "DELETE THIS ENTRY?"):
             db = load_database()
             if idea_id in db:
                 del db[idea_id]
@@ -188,7 +228,7 @@ class ShowIdeasPage(tk.Frame):
                 self.refresh_list()
 
 
-# --- START ---
+# --- RUN APPLICATION ---
 if __name__ == "__main__":
     root = tk.Tk()
     app = IdeaPadApp(root)
