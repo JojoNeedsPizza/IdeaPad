@@ -5,7 +5,26 @@ from pick import pick
 # No GUI for now!!!!
 # Test Build 1 Ready for Pre- Alpha
 
+logotext = r"""
 
+
+
+  ######         ##                      ######:                   ##            . ####:              .####.             #####:    ########  ##:  :## 
+  ######         ##                      #######:                  ##            #######:             ######             #######   ########  ##    ## 
+    ##           ##                      ##   :##                  ##            #:.   ##            :##  ##:            ##  :##:  ##        :##  ##: 
+    ##      :###.##   .####:    :####    ##    ##   :####     :###.##                  ##            ##:  :##            ##   :##  ##        :##  ##: 
+    ##     :#######  .######:   ######   ##   :##   ######   :#######                 :#             ##    ##            ##   .##  ##         ## .##  
+    ##     ###  ###  ##:  :##   #:  :##  #######:   #:  :##  ###  ###                 ##             ## ## ##            ##    ##  #######    ##::##  
+    ##     ##.  .##  ########    :#####  ######:     :#####  ##.  .##               .##:             ## ## ##            ##    ##  #######    ##::##  
+    ##     ##    ##  ########  .#######  ##        .#######  ##    ##              .##:              ##    ##            ##   .##  ##         :####:  
+    ##     ##.  .##  ##        ## .  ##  ##        ## .  ##  ##.  .##             :##:               ##:  :##            ##   :##  ##         .####.  
+    ##     ###  ###  ###.  :#  ##:  ###  ##        ##:  ###  ###  ###            :##:         ##     :##  ##:            ##  :##:  ##          ####   
+  ######   :#######  .#######  ########  ##        ########  :#######            ########     ##      ######             #######   ########    ####   
+  ######    :###.##   .#####:    ###.##  ##          ###.##   :###.##            ########     ##      .####.             #####:    ########     ##    
+
+
+                                               Made by JojoNeedsPizza  --Still in developement                                                                                                       
+"""
 
 def add_idea():
     currentdateandtime = datetime.datetime.now()
@@ -46,47 +65,39 @@ def add_idea():
         print("Idea Saved Successfully!")
 
 
-logotext = r"""
 
 
 
-  ######         ##                      ######:                   ##            . ####:              .####.             #####:    ########  ##:  :## 
-  ######         ##                      #######:                  ##            #######:             ######             #######   ########  ##    ## 
-    ##           ##                      ##   :##                  ##            #:.   ##            :##  ##:            ##  :##:  ##        :##  ##: 
-    ##      :###.##   .####:    :####    ##    ##   :####     :###.##                  ##            ##:  :##            ##   :##  ##        :##  ##: 
-    ##     :#######  .######:   ######   ##   :##   ######   :#######                 :#             ##    ##            ##   .##  ##         ## .##  
-    ##     ###  ###  ##:  :##   #:  :##  #######:   #:  :##  ###  ###                 ##             ## ## ##            ##    ##  #######    ##::##  
-    ##     ##.  .##  ########    :#####  ######:     :#####  ##.  .##               .##:             ## ## ##            ##    ##  #######    ##::##  
-    ##     ##    ##  ########  .#######  ##        .#######  ##    ##              .##:              ##    ##            ##   .##  ##         :####:  
-    ##     ##.  .##  ##        ## .  ##  ##        ## .  ##  ##.  .##             :##:               ##:  :##            ##   :##  ##         .####.  
-    ##     ###  ###  ###.  :#  ##:  ###  ##        ##:  ###  ###  ###            :##:         ##     :##  ##:            ##  :##:  ##          ####   
-  ######   :#######  .#######  ########  ##        ########  :#######            ########     ##      ######             #######   ########    ####   
-  ######    :###.##   .#####:    ###.##  ##          ###.##   :###.##            ########     ##      .####.             #####:    ########     ##    
 
 
-                                               Made by JojoNeedsPizza  --Still in developement                                                                                                       
-"""
-
-#print(logotext)
 
 
-# Das Hauptmenü definieren
-#titel = "=== IDEAPAD HAUPTMENÜ ===\n(Nutze die Pfeiltasten zum Steuern und drücke ENTER)"
-#optionen = ["1. Add a new Idea", "2. Show Ideas", "3. Programm beenden"]
 
-# Das Menü starten. 'option' hält den Text, 'index' die Position (0, 1, 2)
-#option, index = pick(optionen, titel, indicator="=>", default_index=0)
 
-# Auswerten, was gedrückt wurde anhand des Index (0-basiert)
-#if index == 0:
-#    print("\n[Du hast 'Neue Idee hinzufügen' ausgewählt]")
-    # Hier kommt dein Input- und Speicher-Code hin
-#    add_idea()
 
-#elif index == 1:
-#    print("\n[Du hast 'Alle Ideen anzeigen' ausgewählt]")
 
-#elif index == 2:
-#    print("Auf Wiedersehen!")
 
-add_idea()
+# --------------------------------------------------
+#|                  Main Menu                      |
+#---------------------------------------------------
+
+def main_menu():
+
+
+ print(logotext)
+
+
+ Das Hauptmenü definieren
+ titel = "=== IDEAPAD HAUPTMENÜ ===\n(Nutze die Pfeiltasten zum Steuern und drücke ENTER)"
+ optionen = ["1. Add a new Idea", "2. Show Ideas", "3. Programm beenden"]
+ option, index = pick(optionen, titel, indicator="=>", default_index=0)
+ if index == 0:
+    print("\n[Du hast 'Neue Idee hinzufügen' ausgewählt]")
+    add_idea()
+ elif index == 1:
+    print("\n[Du hast 'Alle Ideen anzeigen' ausgewählt]")
+ elif index == 2:
+    print("Auf Wiedersehen!")
+
+
+
