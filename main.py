@@ -25,8 +25,31 @@ logotext = r"""
 
                                                Made by JojoNeedsPizza  --Still in developement                                                                                                       
 """
+main_menu_ui_title = r"""
+---------------------------------------------------
+|                  Main Menu                      |
+---------------------------------------------------
+"""
 
+add_new_idea = r"""
+---------------------------------------------------
+|              Add a new Idea                     |
+---------------------------------------------------
+"""
+
+show_all_ideas = r"""
+---------------------------------------------------
+|                Show all Ideas                   |
+---------------------------------------------------
+"""
+
+
+
+#---------------------------------------------------
+#|              Add a new Idea                     |
+#---------------------------------------------------
 def add_idea():
+    print(add_new_idea)
     currentdateandtime = datetime.datetime.now()
     databasetemp = {}
     if os.path.exists("database.json"):
@@ -64,8 +87,10 @@ def add_idea():
         json.dump(databasetemp, file, indent=4)
         print("Idea Saved Successfully!")
 
-
-
+#---------------------------------------------------
+#|                Show all Ideas                   |
+#---------------------------------------------------
+def show_ideas():
 
 
 
@@ -82,22 +107,15 @@ def add_idea():
 #---------------------------------------------------
 
 def main_menu():
-
-
- print(logotext)
-
-
- Das Hauptmenü definieren
- titel = "=== IDEAPAD HAUPTMENÜ ===\n(Nutze die Pfeiltasten zum Steuern und drücke ENTER)"
- optionen = ["1. Add a new Idea", "2. Show Ideas", "3. Programm beenden"]
+ print(main_menu_ui_title)
+ titel = "\n(Use the Arrow Keys to steer and press Enter to select)"
+ optionen = ["1. Add a new Idea", "2. Show Ideas", "3. Exit Program"]
  option, index = pick(optionen, titel, indicator="=>", default_index=0)
  if index == 0:
-    print("\n[Du hast 'Neue Idee hinzufügen' ausgewählt]")
     add_idea()
  elif index == 1:
-    print("\n[Du hast 'Alle Ideen anzeigen' ausgewählt]")
+    show_ideas()
  elif index == 2:
-    print("Auf Wiedersehen!")
-
+    print("Goodbye!")
 
 
