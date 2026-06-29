@@ -5,8 +5,8 @@ import win32gui
 import win32con
 
 from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPainter, QColor, QPen
+from PyQt6.QtCore import Qt, QTimer, QPoint
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
 # ─── DPI AWARENESS ──────────────────────────────────────────────────────────
 try:
@@ -98,7 +98,7 @@ class NothingDock(QWidget):
     def __init__(self):
         super().__init__()
 
-        # Qt Flags
+        # Qt Fensterkonfiguration
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
@@ -107,20 +107,19 @@ class NothingDock(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
-        # Geometrie
+        # Perfekt proportionierte Geometrie für 2 runde System-Buttons + Status-Dot
         wx, wy, ww, wh = get_screen_geometry()
-        self.dock_w = 140
-        self.dock_h = 36
-        self.dock_x = wx + ww - self.dock_w - 20
-        self.dock_y = wy + wh - self.dock_h - 10
+        self.dock_w = 130
+        self.dock_h = 38
+        self.dock_x = wx + ww - self.dock_w - 15  # Rechter Rand Abstand
+        self.dock_y = wy + wh - self.dock_h - 4  # Exakt bündig über der Taskleiste
 
         self.setGeometry(self.dock_x, self.dock_y, self.dock_w, self.dock_h)
 
-        # State
         self._was_fullscreen = False
         self._hwnd = None
 
-        # Timer (500ms ist Ressourcen-schonend und verhindert Flackern)
+        # Loop für Z-Order und Fullscreen-Wächter (500ms flackert nicht)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_state)
         self.timer.start(500)
@@ -161,51 +160,83 @@ class NothingDock(QWidget):
                 self._hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS
             )
 
-    # ─── UI UND GLYPHEN ──────────────────────────────────────────────────────
+    # ─── DESIGN & PAINTING (NOTHING OS GLYPH STYLE) ──────────────────────────
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Hintergrund: Nothing-Style Dunkelgrau/Transparent
-        painter.setBrush(QColor(15, 15, 15, 210))
-        painter.setPen(QPen(QColor(50, 50, 50, 200), 1))
-        painter.drawRoundedRect(0, 0, self.dock_w, self.dock_h, 18, 18)
+        # Matte, translucent schwarze Widget-Kapsel
+        painter.setBrush(QBrush(QColor(14, 14, 14, 225)))
+        painter.setPen(QPen(QColor(60, 60, 60, 150), 1))
+        painter.drawRoundedRect(0, 0, self.dock_w, self.dock_h, 19, 19)
 
-        # Glyphen zeichnen
-        self._draw_glyph(painter, 25, "add")
-        self._draw_glyph(painter, 95, "show")
+        # Center-Points für die mathematisch exakte Ausrichtung
+        center_y = self.dock_h // 2
+        add_center_x = 32
+        show_center_x = 82
 
-    def _draw_glyph(self, painter, x, mode):
-        # Basis-Kreis
-        painter.setPen(QPen(QColor(255, 255, 255, 220), 1.5))
+        # 1. ADD-ICON (Circle + Minimalist Plus)
+        painter.setPen(QPen(QColor(255, 255, 255, 230), 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(x, 8, 20, 20)
+        painter.drawEllipse(QPoint(add_center_x, center_y), 11, 11)
 
-        # Details
-        painter.setPen(QColor(255, 255, 255, 255))
-        if mode == "add":
-            # Das Plus
-            painter.drawLine(x + 10, 12, x + 10, 24)
-            painter.drawLine(x + 4, 18, x + 16, 18)
-        else:
-            # Das Auge
-            painter.drawEllipse(x + 6, 13, 8, 8)
-            painter.setBrush(QColor(255, 255, 255, 255))
-            painter.drawEllipse(x + 9, 16, 2, 2)
+        painter.setPen(QPen(QColor(255, 255, 255, 255), 1.5))
+        painter.drawLine(add_center_x, center_y - 5, add_center_x, center_y + 5)
+        painter.drawLine(add_center_x - 5, center_y, add_center_x + 5, center_y)
 
-    # ─── KLICK-LOGIK ─────────────────────────────────────────────────────────
+        # 2. SHOW-ICON (Circle + Geometric Almond Eye)
+        painter.setPen(QPen(QColor(255, 255, 255, 230), 1.5))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QPoint(show_center_x, center_y), 11, 11)
+
+        # Auge über zwei symmetrische Bezier-Kurven (Almond-Shape)
+        eye_path = QPainterPath()
+        left_corner = QPoint(show_center_x - 6, center_y)
+        right_corner = QPoint(show_center_x + 6, center_y)
+
+        eye_path.moveTo(left_corner)
+        eye_path.quadTo(QPoint(show_center_x, center_y - 5), right_corner)
+        eye_path.quadTo(QPoint(show_center_x, center_y + 5), left_corner)
+        painter.drawPath(eye_path)
+
+        # Pupille
+        painter.setBrush(QBrush(QColor(255, 255, 255)))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QPoint(show_center_x, center_y), 2, 2)
+
+        # 3. SIGNATURE NOTHING RED DOT (Hardware Accent)
+        painter.setBrush(QBrush(QColor(229, 43, 31)))  # Das originale Nothing-Rot
+        painter.drawEllipse(QPoint(self.dock_w - 20, center_y), 2, 2)
+
+        painter.end()
+
+    # ─── INTERACTION & INTERFACE ─────────────────────────────────────────────
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            x_pos = event.position().x()
-            if x_pos < self.dock_w / 2:
-                print("ACTION: Add Idea clicked! -> Öffne Input-Fenster")
-                # Hier kannst du dein Add-Idea Skript aufrufen
+            x_click = event.position().x()
+
+            # Trennung der Klick-Zonen anhand der mathematischen Mitte
+            if x_click < (self.dock_w / 2):
+                self.trigger_add_idea()
             else:
-                print("ACTION: Show Ideas clicked! -> Öffne Liste")
-                # Hier kannst du dein Show-Ideas Skript aufrufen
+                self.trigger_show_ideas()
+
+    def trigger_add_idea(self):
+        """Hier die Logik zum Öffnen deines Erstellungs-Fensters einbinden."""
+        print("[Daemon] Trigger: Add Idea Function")
+        # BEISPIEL:
+        # self.add_window = AddIdeaWindow()
+        # self.add_window.show()
+
+    def trigger_show_ideas(self):
+        """Hier die Logik zum Öffnen deiner Ideen-Übersicht einbinden."""
+        print("[Daemon] Trigger: Show Ideas Function")
+        # BEISPIEL:
+        # self.show_window = ShowIdeasWindow()
+        # self.show_window.show()
 
 
-# ─── START ───────────────────────────────────────────────────────────────────
+# ─── ENTRY POINT ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
