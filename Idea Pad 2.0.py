@@ -4,19 +4,20 @@ import json
 import os
 import datetime
 
-# --- SYSTEM FARBEN & FONTS (Nothing Style) ---
-BG_COLOR = "#000000"  # Tiefschwarz
-FG_COLOR = "#FFFFFF"  # Reinweiß
-ACCENT_COLOR = "#FF0044"  # Nothing-Signalrot
-CARD_BG = "#111111"  # Dunkelgrau für die Ideen-Boxen
+# --- CONFIGURATION (Nothing OS 2.0 / 3.0 Look) ---
+BG_COLOR = "#0B0B0B"  # Nahezu reines, edles Schwarz
+CARD_BG = "#161616"  # Subtiles Dunkelgrau für Eingaben & Karten
+FG_MAIN = "#FFFFFF"  # Haupttext in Weiß
+FG_MUTED = "#888888"  # Gedimmter Text für Sekundenär-Infos
+ACCENT = "#FF0033"  # Das unverkennbare Nothing-Signalrot
 
-FONT_TITLE = ("Courier", 24, "bold")
-FONT_SUBTITLE = ("Courier", 12, "italic")
-FONT_REGULAR = ("Courier", 10)
-FONT_BOLD = ("Courier", 10, "bold")
+FONT_DISPLAY = ("Courier", 26, "bold")
+FONT_HEADER = ("Courier", 16, "bold")
+FONT_TEXT = ("Courier", 11)
+FONT_SUB = ("Courier", 9, "italic")
 
 
-# --- LOGIK ---
+# --- CORE LOGIC ---
 
 def load_database():
     if os.path.exists("database.json"):
@@ -34,17 +35,17 @@ def save_to_json(data):
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 
-# --- GUI MAIN APPLICATION ---
+# --- APP CONTROLLER ---
 
 class IdeaPadApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("IdeaPad // OS.1")
-        self.root.geometry("600x550")
+        self.root.title("IdeaPad // NTHG_OS")
+        self.root.geometry("650x600")
         self.root.configure(bg=BG_COLOR)
 
         self.container = tk.Frame(self.root, bg=BG_COLOR)
-        self.container.pack(fill="both", expand=True)
+        self.container.pack(fill="both", expand=True, padx=30, pady=30)
 
         self.frames = {}
 
@@ -63,70 +64,80 @@ class IdeaPadApp:
         frame.tkraise()
 
 
-# --- 1. MAIN MENU (Nothing Redesign) ---
+# --- STYLISH HOVER BUTTON WIDGET ---
+
+class NothingButton(tk.Button):
+    """Ein wiederverwendbarer Button im puren Nothing-Look mit Hover-Effekt"""
+
+    def __init__(self, master, text, command, is_accent=False, **kwargs):
+        fg = ACCENT if is_accent else FG_MAIN
+        active_bg = ACCENT if is_accent else FG_MAIN
+        active_fg = FG_MAIN if is_accent else BG_COLOR
+
+        super().__init__(
+            master, text=text, command=command, font=FONT_TEXT,
+            fg=fg, bg=BG_COLOR, activebackground=active_bg, activeforeground=active_fg,
+            bd=1, relief="solid", highlightthickness=0, padx=15, pady=8, cursor="hand2", **kwargs
+        )
+        # Invertierungseffekt beim Drüberfahren mit der Maus
+        self.bind("<Enter>", lambda e: self.config(bg=active_bg, fg=active_fg))
+        self.bind("<Leave>", lambda e: self.config(bg=BG_COLOR, fg=fg))
+
+
+# --- 1. PAGE: MAIN MENU ---
 
 class MainMenu(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG_COLOR)
 
-        # Titel im Pixel/Coding-Look
-        label = tk.Label(self, text="IdeaPad_.", font=FONT_TITLE, fg=FG_COLOR, bg=BG_COLOR)
-        label.pack(pady=(60, 5))
+        # Header Element
+        title_frame = tk.Frame(self, bg=BG_COLOR)
+        title_frame.pack(pady=(60, 50), fill="x")
 
-        subtitle = tk.Label(self, text="v2.0 // BY JOJO", font=FONT_SUBTITLE, fg=ACCENT_COLOR, bg=BG_COLOR)
-        subtitle.pack(pady=(0, 40))
+        tk.Label(title_frame, text="IdeaPad.", font=FONT_DISPLAY, fg=FG_MAIN, bg=BG_COLOR, anchor="w").pack(fill="x")
+        tk.Label(title_frame, text="// OS.3_PRE_ALPHA", font=FONT_SUB, fg=FG_MUTED, anchor="w").pack(fill="x")
 
-        # Stylische, flache Buttons mit weißem Rahmen
-        btn_style = {
-            "font": FONT_REGULAR, "fg": FG_COLOR, "bg": BG_COLOR,
-            "activebackground": FG_COLOR, "activeforeground": BG_COLOR,
-            "bd": 1, "relief": "solid", "width": 25, "height": 2
-        }
+        # Intuitive Button-Anordnung
+        btn_frame = tk.Frame(self, bg=BG_COLOR)
+        btn_frame.pack(fill="x", pady=20)
 
-        tk.Button(self, text="[+ Add a new Idea ]", command=lambda: controller.show_frame("AddIdeaPage"),
-                  **btn_style).pack(pady=10)
-        tk.Button(self, text="[= Show Ideas     ]", command=lambda: controller.show_frame("ShowIdeasPage"),
-                  **btn_style).pack(pady=10)
-
-        # Exit Button in Signalrot
-        exit_style = btn_style.copy()
-        exit_style.update({"fg": ACCENT_COLOR, "activebackground": ACCENT_COLOR, "activeforeground": FG_COLOR})
-        tk.Button(self, text="[x Exit Program   ]", command=parent.quit, **exit_style).pack(pady=10)
+        NothingButton(btn_frame, text="Add New Idea", command=lambda: controller.show_frame("AddIdeaPage")).pack(
+            fill="x", pady=8)
+        NothingButton(btn_frame, text="View Saved Ideas", command=lambda: controller.show_frame("ShowIdeasPage")).pack(
+            fill="x", pady=8)
+        NothingButton(btn_frame, text="Disconnect / Exit", command=parent.quit, is_accent=True).pack(fill="x", pady=30)
 
 
-# --- 2. ADD IDEA PAGE (Nothing Redesign) ---
+# --- 2. PAGE: ADD IDEA ---
 
 class AddIdeaPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG_COLOR)
         self.controller = controller
 
-        tk.Label(self, text="// ADD_NEW_IDEA", font=FONT_TITLE, fg=FG_COLOR, bg=BG_COLOR).pack(pady=20)
+        # Page Title
+        tk.Label(self, text="New Idea.", font=FONT_HEADER, fg=FG_MAIN, bg=BG_COLOR, anchor="w").pack(fill="x",
+                                                                                                     pady=(10, 30))
 
-        # Name Input
-        tk.Label(self, text="ENTER IDEA NAME:", font=FONT_BOLD, fg=ACCENT_COLOR, bg=BG_COLOR).pack(anchor="w", padx=50)
-        self.entry_name = tk.Entry(self, font=FONT_REGULAR, fg=FG_COLOR, bg=CARD_BG, insertbackground=FG_COLOR, bd=1,
-                                   relief="solid", width=50)
-        self.entry_name.pack(pady=(5, 20), ipady=5)
+        # Input Name
+        tk.Label(self, text="CONCEPT NAME", font=FONT_SUB, fg=FG_MUTED, bg=BG_COLOR, anchor="w").pack(fill="x")
+        self.entry_name = tk.Entry(self, font=FONT_TEXT, fg=FG_MAIN, bg=CARD_BG, insertbackground=FG_MAIN, bd=0,
+                                   highlightthickness=1, highlightbackground="#333333", highlightcolor=FG_MAIN)
+        self.entry_name.pack(fill="x", pady=(5, 25), ipady=8, padx=1)
 
-        # Description Input
-        tk.Label(self, text="DESCRIBE THE IDEA:", font=FONT_BOLD, fg=ACCENT_COLOR, bg=BG_COLOR).pack(anchor="w",
-                                                                                                     padx=50)
-        self.text_desc = tk.Text(self, font=FONT_REGULAR, fg=FG_COLOR, bg=CARD_BG, insertbackground=FG_COLOR, bd=1,
-                                 relief="solid", width=50, height=8)
-        self.text_desc.pack(pady=5)
+        # Input Description
+        tk.Label(self, text="DESCRIPTION // CORE DETAILS", font=FONT_SUB, fg=FG_MUTED, bg=BG_COLOR, anchor="w").pack(
+            fill="x")
+        self.text_desc = tk.Text(self, font=FONT_TEXT, fg=FG_MAIN, bg=CARD_BG, insertbackground=FG_MAIN, bd=0,
+                                 highlightthickness=1, highlightbackground="#333333", highlightcolor=FG_MAIN, height=8)
+        self.text_desc.pack(fill="x", pady=(5, 20), padx=1)
 
-        # Nav-Buttons am unteren Rand
+        # Navigation Footer
         btn_frame = tk.Frame(self, bg=BG_COLOR)
-        btn_frame.pack(fill="x", side="bottom", pady=30, padx=50)
+        btn_frame.pack(fill="x", side="bottom", pady=10)
 
-        nav_style = {"font": FONT_REGULAR, "bg": BG_COLOR, "bd": 1, "relief": "solid", "height": 2,
-                     "activebackground": FG_COLOR, "activeforeground": BG_COLOR}
-
-        tk.Button(btn_frame, text="< BACK", fg=FG_COLOR, width=12, command=lambda: controller.show_frame("MainMenu"),
-                  **nav_style).pack(side="left")
-        tk.Button(btn_frame, text="[ SAVE_IDEA ]", fg=ACCENT_COLOR, width=15, command=self.save_idea, **nav_style).pack(
-            side="right")
+        NothingButton(btn_frame, text="< Back", command=lambda: controller.show_frame("MainMenu")).pack(side="left")
+        NothingButton(btn_frame, text="Commit Idea", command=self.save_idea, is_accent=True).pack(side="right")
 
         self.text_desc.bind("<Shift-Return>", lambda event: self.save_idea())
 
@@ -135,12 +146,12 @@ class AddIdeaPage(tk.Frame):
         desc = self.text_desc.get("1.0", "end-1c")
 
         if name.strip() == "":
-            messagebox.showwarning("System Error", "Idea name cannot be empty.")
+            messagebox.showwarning("System Notification", "Concept requires a valid identification name.")
             return
 
         db = load_database()
         coid = len(db) + 1
-        cdnt = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cdnt = datetime.datetime.now().strftime("%Y/%m/%d @ %H:%M")
 
         db[f"Idea{coid}"] = {
             "Name of Idea": name,
@@ -155,25 +166,21 @@ class AddIdeaPage(tk.Frame):
         self.controller.show_frame("MainMenu")
 
 
-# --- 3. SHOW IDEAS PAGE (Nothing Redesign) ---
+# --- 3. PAGE: SHOW IDEAS ---
 
 class ShowIdeasPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG_COLOR)
         self.controller = controller
 
-        # Header
+        # Clean Header Row
         header = tk.Frame(self, bg=BG_COLOR)
-        header.pack(fill="x", pady=20, padx=20)
+        header.pack(fill="x", pady=(0, 20))
 
-        tk.Button(header, text="< BACK", font=FONT_REGULAR, fg=FG_COLOR, bg=BG_COLOR,
-                  activebackground=FG_COLOR, activeforeground=BG_COLOR, bd=1, relief="solid",
-                  command=lambda: controller.show_frame("MainMenu")).pack(side="left", padx=10)
+        NothingButton(header, text="< Back", command=lambda: controller.show_frame("MainMenu")).pack(side="left")
+        tk.Label(header, text="Storage.", font=FONT_HEADER, fg=FG_MAIN, bg=BG_COLOR).pack(side="right", pady=5)
 
-        tk.Label(header, text="// STORAGE_ALL", font=FONT_TITLE, fg=ACCENT_COLOR, bg=BG_COLOR).pack(side="right",
-                                                                                                    padx=10)
-
-        # Scrollbarer Bereich komplett in Schwarz gehalten
+        # Scrollable Minimalist Feed
         self.canvas = tk.Canvas(self, bg=BG_COLOR, highlightthickness=0)
         self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview, bg=BG_COLOR)
         self.scrollable_frame = tk.Frame(self.canvas, bg=BG_COLOR)
@@ -186,8 +193,8 @@ class ShowIdeasPage(tk.Frame):
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        self.canvas.pack(side="left", fill="both", expand=True, padx=(20, 0))
-        self.scrollbar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y", padx=(10, 0))
 
     def refresh_list(self):
         for widget in self.scrollable_frame.winfo_children():
@@ -195,32 +202,40 @@ class ShowIdeasPage(tk.Frame):
 
         db = load_database()
         if not db:
-            tk.Label(self.scrollable_frame, text="NO IDEAS SAVED_.", font=FONT_REGULAR, fg=ACCENT_COLOR,
-                     bg=BG_COLOR).pack(pady=40)
+            tk.Label(self.scrollable_frame, text="NO_DATA_FOUND // ARCHIVE_EMPTY", font=FONT_TEXT, fg=ACCENT,
+                     bg=BG_COLOR).pack(pady=60)
             return
 
-        for idea_id, data in db.items():
-            # Karten im "Nothing Phone-Case" Look: Dunkles Grau, dünner weißer Rahmen
-            frame = tk.Frame(self.scrollable_frame, bg=CARD_BG, bd=1, relief="solid", padx=15, pady=15)
-            frame.pack(fill="x", padx=10, pady=8)
+        # Trick, um die Breite an das Fenster anzupassen
+        self.scrollable_frame.grid_columnconfigure(0, weight=1)
 
-            # Details
-            tk.Label(frame, text=f"ID: {idea_id} // {data.get('Date and Time', '-')}", font=FONT_SUBTITLE,
-                     fg=ACCENT_COLOR, bg=CARD_BG).pack(anchor="w")
-            tk.Label(frame, text=data["Name of Idea"].upper(), font=FONT_TITLE, fg=FG_COLOR, bg=CARD_BG).pack(
-                anchor="w", pady=(5, 10))
-            tk.Label(frame, text=data["Description"], font=FONT_REGULAR, fg=FG_COLOR, bg=CARD_BG, wraplength=450,
-                     justify="left").pack(anchor="w")
+        for idea_id, data in reversed(list(db.items())):  # Die neuesten Ideen stehen jetzt intuitiv ganz oben!
+            # Cleane Karte ohne harte Ränder, sondern durch Farbflächen getrennt
+            card = tk.Frame(self.scrollable_frame, bg=CARD_BG, padx=20, pady=20)
+            card.pack(fill="x", pady=6)
 
-            # Delete Knopf als minimalistisches [X]
-            btn_f = tk.Frame(frame, bg=CARD_BG)
-            btn_f.pack(anchor="e", pady=(10, 0))
-            tk.Button(btn_f, text="[ DELETE ]", font=FONT_REGULAR, fg=ACCENT_COLOR, bg=CARD_BG,
-                      activebackground=ACCENT_COLOR, activeforeground=FG_COLOR, bd=0, cursor="hand2",
-                      command=lambda i=idea_id: self.delete_idea(i)).pack(side="right")
+            # Header-Zeile innerhalb der Karte (ID & Zeit)
+            top_row = tk.Frame(card, bg=CARD_BG)
+            top_row.pack(fill="x", pady=(0, 8))
+            tk.Label(top_row, text=f"// ID: {idea_id}", font=FONT_SUB, fg=ACCENT, bg=CARD_BG).pack(side="left")
+            tk.Label(top_row, text=data.get('Date and Time', '-'), font=FONT_SUB, fg=FG_MUTED, bg=CARD_BG).pack(
+                side="right")
+
+            # Content
+            tk.Label(card, text=data["Name of Idea"].upper(), font=FONT_HEADER, fg=FG_MAIN, bg=CARD_BG,
+                     anchor="w").pack(fill="x", pady=(0, 6))
+            tk.Label(card, text=data["Description"], font=FONT_TEXT, fg=FG_MAIN, bg=CARD_BG, wraplength=520,
+                     justify="left", anchor="w").pack(fill="x")
+
+            # Subtiler Delete-Link statt klobigem Button
+            lbl_del = tk.Label(card, text="[ WIPE_ENTRY ]", font=FONT_SUB, fg=FG_MUTED, bg=CARD_BG, cursor="hand2")
+            lbl_del.pack(anchor="e", pady=(15, 0))
+            lbl_del.bind("<Enter>", lambda e, l=lbl_del: l.config(fg=ACCENT))
+            lbl_del.bind("<Leave>", lambda e, l=lbl_del: l.config(fg=FG_MUTED))
+            lbl_del.bind("<Button-1>", lambda e, i=idea_id: self.delete_idea(i))
 
     def delete_idea(self, idea_id):
-        if messagebox.askyesno("SYSTEM", "DELETE THIS ENTRY?"):
+        if messagebox.askyesno("ARCHIVE SYSTEM", "CONFIRM TOTAL DELETION?"):
             db = load_database()
             if idea_id in db:
                 del db[idea_id]
@@ -228,7 +243,7 @@ class ShowIdeasPage(tk.Frame):
                 self.refresh_list()
 
 
-# --- RUN APPLICATION ---
+# --- APPLICATION EXECUTION ---
 if __name__ == "__main__":
     root = tk.Tk()
     app = IdeaPadApp(root)
