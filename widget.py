@@ -1,30 +1,28 @@
-import tkinter as tk
-from tkinter import messagebox
-import json
+import sys
 import os
-import datetime
+import json
+from datetime import datetime
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+                             QLabel, QLineEdit, QTextEdit, QScrollArea)
+from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtGui import QFont, QPainter, QColor
 
-# --- NOTHING DESIGN GUIDELINES (Widget Edition) ---
+# --- NOTHING DESIGN GUIDELINES ---
 COLOR_BG = "#000000"
 COLOR_CARD = "#121212"
 COLOR_TEXT_MAIN = "#FFFFFF"
 COLOR_TEXT_MUTED = "#666666"
 COLOR_DOT = "#FF0033"
 
-FONT_LABEL = ("Courier", 10, "bold")
-FONT_BODY = ("Courier", 11)
-FONT_TIMESTAMP = ("Courier", 9)
 
-
-# --- DATABASE LOGIC ---
 def load_database():
     if os.path.exists("database.json"):
         with open("database.json", "r", encoding="utf-8") as file:
             try:
                 data = json.load(file)
-                return data if isinstance(data, dict) else {}
             except json.JSONDecodeError:
                 return {}
+            return data if isinstance(data, dict) else {}
     return {}
 
 
@@ -33,122 +31,212 @@ def save_to_json(data):
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 
-# --- INTERACTIVE LINKS ---
-class ActionLabel(tk.Label):
-    def __init__(self, master, text, command, active_color=COLOR_TEXT_MAIN, **kwargs):
-        super().__init__(master, text=text, font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, cursor="hand2", **kwargs)
-        self.command = command
-        self.active_color = active_color
-        self.bind("<Enter>", lambda e: self.config(fg=self.active_color))
-        self.bind("<Leave>", lambda e: self.config(fg=COLOR_TEXT_MUTED))
-        self.bind("<Button-1>", lambda e: self.command())
+# --- DETACHED POPUP WIDGET (The Menu from your Drawing) ---
+class IdeaPadWidgetMenu(QWidget):
+    def __init__(self, mode="add", launch_x=0):
+        super().__init__()
+        # Frameless, Stays on Top, Tool-Window (verhindert Taskleisten-Eintrag für das Popup)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setStyleSheet(f"background-color: {COLOR_BG}; border: 1px solid #222222; color: {COLOR_TEXT_MAIN};")
 
-
-# --- POPUP WIDGET WINDOW ---
-class IdeaPadWidget:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("IdeaPad Widget")
-        self.root.configure(bg=COLOR_BG)
-
-        # 1. Fensterränder entfernen für Widget-Look
-        self.root.overrideredirect(True)
-        self.root.attributes("-topmost", True)  # Immer im Vordergrund beim Öffnen
-
-        # 2. Fenstergröße definieren (Schmal & kompakt wie in deiner Skizze)
         self.width = 320
         self.height = 420
-        self.position_above_taskbar()
 
-        # Container für den Inhalt
-        self.container = tk.Frame(self.root, bg=COLOR_BG, padx=20, pady=20)
-        self.container.pack(fill="both", expand=True)
+        # Positioniert das Menü exakt über dem geklickten Icon
+        screen = QApplication.primaryScreen().availableGeometry()
+        y_pos = screen.height() - self.height - 50  # Direkt über der Taskleiste
+        self.setGeometry(launch_x - (self.width // 2) + 20, y_pos, self.width, self.height)
 
-        # Starte standardmäßig mit der "Add Idea" Ansicht aus deiner Skizze
-        self.show_add_view()
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # 3. VERSTECKEN WENN FOKUS VERLOREN GEHT (Wie Windows Taskbar Menüs)
-        self.root.bind("<FocusOut>", lambda e: self.root.destroy())
+        if mode == "add":
+            self.init_add_view()
+        else:
+            self.init_archive_view()
 
-        # Workaround: Manchmal verliert Tkinter den Fokus beim raustappen nicht sofort
-        self.root.after(100, lambda: self.root.focus_force())
+        self.activateWindow()
 
-    def position_above_taskbar(self):
-        """Berechnet die Position unten rechts, knapp über der Windows-Taskleiste"""
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
+    def init_add_view(self):
+        header = QHBoxLayout()
+        lbl_title = QLabel("Add Idea.")
+        lbl_title.setFont(QFont("Courier", 14, QFont.Weight.Bold))
+        close_btn = QLabel("✕")
+        close_btn.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 14px;")
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.mousePressEvent = lambda e: self.close()
 
-        # Abstände (X = rechts, Y = Platz für die Windows Taskleiste unten, ca. 50-60 Pixel)
-        x_pos = screen_width - self.width - 40
-        y_pos = screen_height - self.height - 60
+        header.addWidget(lbl_title)
+        header.addStretch()
+        header.addWidget(close_btn)
+        self.main_layout.addLayout(header)
 
-        self.root.geometry(f"{self.width}x{self.height}+{x_pos}+{y_pos}")
+        # Name Input
+        lbl_name = QLabel("ENTER IDEA NAME...")
+        lbl_name.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 10px; font-family: Courier;")
+        self.main_layout.addWidget(lbl_name)
+        self.entry_name = QLineEdit()
+        self.entry_name.setStyleSheet(
+            "background: transparent; border: 1px solid #333333; padding: 6px; font-family: Courier;")
+        self.main_layout.addWidget(self.entry_name)
 
-    def clear_container(self):
-        for widget in self.container.winfo_children():
-            widget.destroy()
-
-    # --- ANSICHT 1: ADD IDEA (Deine obere Zeichnung) ---
-    def show_add_view(self):
-        self.clear_container()
-
-        # Header mit flachem Schließen [X]
-        header = tk.Frame(self.container, bg=COLOR_BG)
-        header.pack(fill="x", pady=(0, 15))
-        tk.Label(header, text="Add Idea.", font=("Courier", 16, "bold"), fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
-            side="left")
-        close_lbl = tk.Label(header, text="✕", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, cursor="hand2")
-        close_lbl.pack(side="right")
-        close_lbl.bind("<Button-1>", lambda e: self.root.destroy())
-
-        # Inputs
-        tk.Label(self.container, text="NAME OF IDEA...", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
-                 anchor="w").pack(fill="x", pady=(5, 2))
-        self.entry_name = tk.Entry(self.container, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
-                                   insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
-                                   highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
-        self.entry_name.pack(fill="x", pady=(0, 15), ipady=6)
-
-        tk.Label(self.container, text="DESCRIPTION...", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
-                 anchor="w").pack(fill="x", pady=(5, 2))
-        self.text_desc = tk.Text(self.container, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_CARD,
-                                 insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=0, height=8)
-        self.text_desc.pack(fill="both", expand=True, pady=(0, 20))
+        # Description Input
+        lbl_desc = QLabel("DESCRIBE THE IDEA...")
+        lbl_desc.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 10px; font-family: Courier;")
+        self.main_layout.addWidget(lbl_desc)
+        self.text_desc = QTextEdit()
+        self.text_desc.setStyleSheet(f"background-color: {COLOR_CARD}; border: none; font-family: Courier;")
+        self.main_layout.addWidget(self.text_desc)
 
         # Footer Actions
-        footer = tk.Frame(self.container, bg=COLOR_BG)
-        footer.pack(fill="x", side="bottom")
+        footer = QHBoxLayout()
+        btn_cancel = QLabel("Cancel")
+        btn_cancel.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-family: Courier;")
+        btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_cancel.mousePressEvent = lambda e: self.close()
 
-        ActionLabel(footer, text="Cancel", command=self.root.destroy, active_color=COLOR_DOT).pack(side="left")
-        ActionLabel(footer, text="Save", command=self.save_widget_idea, active_color=COLOR_TEXT_MAIN).pack(side="right")
+        btn_save = QLabel("Save Idea")
+        btn_save.setStyleSheet("color: #FFFFFF; font-family: Courier; font-weight: bold;")
+        btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_save.mousePressEvent = lambda e: self.save_idea()
 
-        # Shortcut: Shift + Enter speichert auch hier
-        self.text_desc.bind("<Shift-Return>", lambda event: self.save_widget_idea())
+        footer.addWidget(btn_cancel)
+        footer.addStretch()
+        footer.addWidget(btn_save)
+        self.main_layout.addLayout(footer)
 
-    def save_widget_idea(self):
-        name = self.entry_name.get()
-        desc = self.text_desc.get("1.0", "end-1c")
+    def init_archive_view(self):
+        header = QHBoxLayout()
+        lbl_title = QLabel("Idea Archive.")
+        lbl_title.setFont(QFont("Courier", 14, QFont.Weight.Bold))
+        header.addWidget(lbl_title)
+        self.main_layout.addLayout(header)
 
-        if name.strip() == "":
+        # ScrollArea für die Kacheln
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background: transparent; border: none;")
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+
+        db = load_database()
+        if not db:
+            empty_lbl = QLabel("ARCHIVE EMPTY")
+            empty_lbl.setStyleSheet(f"color: {COLOR_DOT}; font-family: Courier;")
+            self.main_layout.addWidget(empty_lbl)
             return
+
+        for idea_id, data in reversed(list(db.items())):
+            card = QWidget()
+            card.setStyleSheet(f"background-color: {COLOR_CARD}; border-radius: 4px;")
+            card_layout = QVBoxLayout(card)
+
+            title = QLabel(data["Name of Idea"])
+            title.setStyleSheet("color: #FFFFFF; font-family: Courier; font-weight: bold;")
+            card_layout.addWidget(title)
+
+            if data["Description"].strip():
+                desc = QLabel(data["Description"])
+                desc.setWordWrap(True)
+                desc.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-family: Courier; font-size: 11px;")
+                card_layout.addWidget(desc)
+            scroll_layout.addWidget(card)
+
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_content)
+        self.main_layout.addWidget(scroll)
+
+    def save_idea(self):
+        name = self.entry_name.text()
+        desc = self.text_desc.toPlainText()
+        if not name.strip(): return
 
         db = load_database()
         coid = len(db) + 1
-        cdnt = datetime.datetime.now().strftime("%d %b %Y // %H:%M")
-
         db[f"Idea{coid}"] = {
             "Name of Idea": name,
             "Description": desc,
-            "Date and Time": cdnt
+            "Date and Time": datetime.now().strftime("%d %b %Y // %H:%M")
         }
         save_to_json(db)
+        self.close()
 
-        # Schließt das Widget nach dem Speichern automatisch im Hintergrund
-        self.root.destroy()
+    def leaveEvent(self, event):
+        """Automatisches Schließen, wenn man die Maus wegbewegt (Vanish)"""
+        self.close()
 
 
-# --- START SCRIPT ---
+# --- NATIVE-LOOKING TASKBAR ICON OVERLAYS ---
+class NativeTaskbarIconOverlay(QWidget):
+    def __init__(self, mode="add", offset_x=0, symbol="+"):
+        super().__init__()
+        self.mode = mode
+        self.symbol = symbol
+
+        # Komplett rahmenlos, transparent und überlagert alles, taucht NICHT in der Taskleiste als Fenster auf
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.SubWindow)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
+        # Fest definierte Größe für das Icon auf der Taskleiste
+        self.resize(36, 36)
+
+        # Dynamische Positionierung unten rechts NEBEN der Wetteranzeige
+        screen = QApplication.primaryScreen().geometry()
+        # Platziert das Icon exakt auf Höhe der Windows-Taskleiste
+        self.x_pos = screen.width() - 280 + offset_x
+        self.y_pos = screen.height() - 42
+        self.move(self.x_pos, self.y_pos)
+
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.active_widget = None
+
+    def paintEvent(self, event):
+        """Zeichnet das wunderschöne, kreisrunde Nothing OS Icon direkt auf die Taskleiste"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Transparenter, weicher Hintergrund für Hover-Look (simuliert natives Windows-Verhalten)
+        painter.setPen(Qt.GlobalColor.transparent)
+        painter.setBrush(QColor(255, 255, 255, 15))
+        painter.drawRoundedRect(0, 0, self.width(), self.height(), 6, 6)
+
+        # Der weiße Nothing-Kreisring
+        painter.setPen(QColor("#FFFFFF"))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(4, 4, 28, 28)
+
+        # Der ikonische rote Nothing-Punkt im inneren des Symbols
+        painter.setBrush(QColor(COLOR_DOT))
+        painter.setPen(Qt.GlobalColor.transparent)
+        painter.drawEllipse(22, 22, 6, 6)
+
+        # Das Textsymbol im Zentrum (+ oder ☰)
+        painter.setPen(QColor("#FFFFFF"))
+        painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.symbol)
+        painter.end()
+
+    def mousePressEvent(self, event):
+        """Bei Klick ploppt das gezeichnete Widget direkt nach oben auf"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.active_widget = IdeaPadWidgetMenu(mode=self.mode, launch_x=self.x_pos)
+            self.active_widget.show()
+
+
+# --- CORE APPLICATION ---
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = IdeaPadWidget(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+
+    # Erzeugt die zwei runden Taskleisten-Icons
+    # Icon 1: Add Idea (+) Platziert links neben der Wetteranzeige
+    icon_add = NativeTaskbarIconOverlay(mode="add", offset_x=-50, symbol="+")
+    icon_add.show()
+
+    # Icon 2: Show Archive (☰) Direkt daneben platziert
+    icon_show = NativeTaskbarIconOverlay(mode="show", offset_x=-10, symbol="=")
+    icon_show.show()
+
+    sys.exit(app.exec())
