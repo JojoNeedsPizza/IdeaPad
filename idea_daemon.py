@@ -1,8 +1,8 @@
 import sys
 import ctypes
-import ctypes.wintypes
 import win32gui
 import win32con
+import win32api  # Sicherer Import für OS-Abfragen
 
 from PyQt6.QtWidgets import QApplication, QWidget
 from PyQt6.QtCore import Qt, QTimer, QPoint
@@ -18,7 +18,6 @@ except OSError:
 GWL_EXSTYLE = -20
 WS_EX_NOACTIVATE = 0x08000000
 WS_EX_TOOLWINDOW = 0x00000080
-WS_EX_TOPMOST = 0x00000008
 
 SWP_FLAGS = (
         win32con.SWP_NOACTIVATE |
@@ -28,28 +27,17 @@ SWP_FLAGS = (
 )
 
 
-# ─── HELPER FUNKTIONEN ───────────────────────────────────────────────────────
+# ─── STABILE API HELPER (KEIN CTYPES CRASH MEHR) ─────────────────────────────
 def get_screen_geometry() -> tuple[int, int, int, int]:
-    pt = ctypes.wintypes.POINT(0, 0)
-    hmon = ctypes.windll.user32.MonitorFromPoint(pt, 1)
-
-    class MONITORINFO(ctypes.Structure):
-        _fields_ = [
-            ("cbSize", ctypes.c_ulong),
-            ("rcMonitor", ctypes.wintypes.RECT),
-            ("rcWork", ctypes.wintypes.RECT),
-            ("dwFlags", ctypes.c_ulong),
-        ]
-
-    info = MONITORINFO()
-    info.cbSize = ctypes.sizeof(MONITORINFO)
-    ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(info))
-
-    r = info.rcWork
-    return r.left, r.top, r.right - r.left, r.bottom - r.top
+    """Holt die Geometrie der primären Arbeitsfläche ohne ctypes-Risiko."""
+    hmon = win32api.MonitorFromPoint((0, 0), win32con.MONITOR_DEFAULTTOPRIMARY)
+    info = win32api.GetMonitorInfo(hmon)
+    r = info['Work']  # [left, top, right, bottom]
+    return r[0], r[1], r[2] - r[0], r[3] - r[1]
 
 
 def is_real_fullscreen() -> bool:
+    """Erkennt echtes Vollbild über saubere pywin32-Abfragen."""
     hwnd = win32gui.GetForegroundWindow()
     if not hwnd:
         return False
@@ -59,38 +47,20 @@ def is_real_fullscreen() -> bool:
         return False
 
     try:
-        DWMWA_EXTENDED_FRAME_BOUNDS = 9
-        rect = ctypes.wintypes.RECT()
-        ctypes.windll.dwmapi.DwmGetWindowAttribute(
-            hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, ctypes.byref(rect), ctypes.sizeof(rect)
-        )
-        fw, fh = rect.right - rect.left, rect.bottom - rect.top
-        fx, fy = rect.left, rect.top
-    except Exception:
         r = win32gui.GetWindowRect(hwnd)
         fx, fy, fw, fh = r[0], r[1], r[2] - r[0], r[3] - r[1]
 
-    pt = ctypes.wintypes.POINT(fx + fw // 2, fy + fh // 2)
-    hmon = ctypes.windll.user32.MonitorFromPoint(pt, 2)
+        # Monitor direkt aus dem Fenster-Handle ermitteln
+        hmon = win32api.MonitorFromWindow(hwnd, win32con.MONITOR_DEFAULTTONEAREST)
+        info = win32api.GetMonitorInfo(hmon)
+        mr = info['Monitor']  # Gesamter Monitor inkl. Taskleiste
+        mw = mr[2] - mr[0]
+        mh = mr[3] - mr[1]
 
-    class MONITORINFO(ctypes.Structure):
-        _fields_ = [
-            ("cbSize", ctypes.c_ulong),
-            ("rcMonitor", ctypes.wintypes.RECT),
-            ("rcWork", ctypes.wintypes.RECT),
-            ("dwFlags", ctypes.c_ulong),
-        ]
-
-    info = MONITORINFO()
-    info.cbSize = ctypes.sizeof(MONITORINFO)
-    ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(info))
-
-    mr = info.rcMonitor
-    mw = mr.right - mr.left
-    mh = mr.bottom - mr.top
-
-    return (abs(fw - mw) <= 2 and abs(fh - mh) <= 2 and
-            abs(fx - mr.left) <= 2 and abs(fy - mr.top) <= 2)
+        return (abs(fw - mw) <= 2 and abs(fh - mh) <= 2 and
+                abs(fx - mr[0]) <= 2 and abs(fy - mr[1]) <= 2)
+    except Exception:
+        return False
 
 
 # ─── HAUPT-DOCK KLASSE ───────────────────────────────────────────────────────
@@ -107,19 +77,18 @@ class NothingDock(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
-        # Perfekt proportionierte Geometrie für 2 runde System-Buttons + Status-Dot
+        # Geometrie berechnen
         wx, wy, ww, wh = get_screen_geometry()
         self.dock_w = 130
         self.dock_h = 38
-        self.dock_x = wx + ww - self.dock_w - 15  # Rechter Rand Abstand
-        self.dock_y = wy + wh - self.dock_h - 4  # Exakt bündig über der Taskleiste
+        self.dock_x = wx + ww - self.dock_w - 15
+        self.dock_y = wy + wh - self.dock_h - 4
 
         self.setGeometry(self.dock_x, self.dock_y, self.dock_w, self.dock_h)
 
         self._was_fullscreen = False
         self._hwnd = None
 
-        # Loop für Z-Order und Fullscreen-Wächter (500ms flackert nicht)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_state)
         self.timer.start(500)
@@ -165,17 +134,16 @@ class NothingDock(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Matte, translucent schwarze Widget-Kapsel
+        # Kapsel-Hintergrund
         painter.setBrush(QBrush(QColor(14, 14, 14, 225)))
         painter.setPen(QPen(QColor(60, 60, 60, 150), 1))
         painter.drawRoundedRect(0, 0, self.dock_w, self.dock_h, 19, 19)
 
-        # Center-Points für die mathematisch exakte Ausrichtung
         center_y = self.dock_h // 2
         add_center_x = 32
         show_center_x = 82
 
-        # 1. ADD-ICON (Circle + Minimalist Plus)
+        # 1. ADD-ICON (Plus im Kreis)
         painter.setPen(QPen(QColor(255, 255, 255, 230), 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(QPoint(add_center_x, center_y), 11, 11)
@@ -184,12 +152,11 @@ class NothingDock(QWidget):
         painter.drawLine(add_center_x, center_y - 5, add_center_x, center_y + 5)
         painter.drawLine(add_center_x - 5, center_y, add_center_x + 5, center_y)
 
-        # 2. SHOW-ICON (Circle + Geometric Almond Eye)
+        # 2. SHOW-ICON (Mandelauge im Kreis)
         painter.setPen(QPen(QColor(255, 255, 255, 230), 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(QPoint(show_center_x, center_y), 11, 11)
 
-        # Auge über zwei symmetrische Bezier-Kurven (Almond-Shape)
         eye_path = QPainterPath()
         left_corner = QPoint(show_center_x - 6, center_y)
         right_corner = QPoint(show_center_x + 6, center_y)
@@ -204,8 +171,8 @@ class NothingDock(QWidget):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QPoint(show_center_x, center_y), 2, 2)
 
-        # 3. SIGNATURE NOTHING RED DOT (Hardware Accent)
-        painter.setBrush(QBrush(QColor(229, 43, 31)))  # Das originale Nothing-Rot
+        # 3. NOTHING RED DOT
+        painter.setBrush(QBrush(QColor(229, 43, 31)))
         painter.drawEllipse(QPoint(self.dock_w - 20, center_y), 2, 2)
 
         painter.end()
@@ -215,25 +182,18 @@ class NothingDock(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             x_click = event.position().x()
 
-            # Trennung der Klick-Zonen anhand der mathematischen Mitte
             if x_click < (self.dock_w / 2):
                 self.trigger_add_idea()
             else:
                 self.trigger_show_ideas()
 
     def trigger_add_idea(self):
-        """Hier die Logik zum Öffnen deines Erstellungs-Fensters einbinden."""
         print("[Daemon] Trigger: Add Idea Function")
-        # BEISPIEL:
-        # self.add_window = AddIdeaWindow()
-        # self.add_window.show()
+        # Hier deine Add-Window-Klasse/Logik einbauen
 
     def trigger_show_ideas(self):
-        """Hier die Logik zum Öffnen deiner Ideen-Übersicht einbinden."""
         print("[Daemon] Trigger: Show Ideas Function")
-        # BEISPIEL:
-        # self.show_window = ShowIdeasWindow()
-        # self.show_window.show()
+        # Hier deine Listen-Window-Klasse/Logik einbauen
 
 
 # ─── ENTRY POINT ───────────────────────────────────────────────────────────────
