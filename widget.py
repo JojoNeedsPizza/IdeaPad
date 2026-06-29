@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QLineEdit, QTextEdit, QScrollArea)
-from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QFont, QPainter, QColor
 
 # --- NOTHING DESIGN GUIDELINES ---
@@ -31,11 +31,11 @@ def save_to_json(data):
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 
-# --- DETACHED POPUP WIDGET (The Menu from your Drawing) ---
+# --- DETACHED POPUP WIDGET ---
 class IdeaPadWidgetMenu(QWidget):
     def __init__(self, mode="add", launch_x=0):
         super().__init__()
-        # Frameless, Stays on Top, Tool-Window (verhindert Taskleisten-Eintrag für das Popup)
+        # Frameless, Stays on Top, Tool-Window
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setStyleSheet(f"background-color: {COLOR_BG}; border: 1px solid #222222; color: {COLOR_TEXT_MAIN};")
 
@@ -43,9 +43,9 @@ class IdeaPadWidgetMenu(QWidget):
         self.height = 420
 
         # Positioniert das Menü exakt über dem geklickten Icon
-        screen = QApplication.primaryScreen().availableGeometry()
-        y_pos = screen.height() - self.height - 50  # Direkt über der Taskleiste
-        self.setGeometry(launch_x - (self.width // 2) + 20, y_pos, self.width, self.height)
+        screen = QApplication.primaryScreen().geometry()
+        y_pos = screen.height() - self.height - 55
+        self.setGeometry(launch_x - (self.width // 2) + 18, y_pos, self.width, self.height)
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(20, 20, 20, 20)
@@ -55,6 +55,8 @@ class IdeaPadWidgetMenu(QWidget):
         else:
             self.init_archive_view()
 
+        # Fokus erzwingen für das Vanish-Event
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.activateWindow()
 
     def init_add_view(self):
@@ -71,21 +73,22 @@ class IdeaPadWidgetMenu(QWidget):
         header.addWidget(close_btn)
         self.main_layout.addLayout(header)
 
-        # Name Input
+        # Name
         lbl_name = QLabel("ENTER IDEA NAME...")
         lbl_name.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 10px; font-family: Courier;")
         self.main_layout.addWidget(lbl_name)
         self.entry_name = QLineEdit()
         self.entry_name.setStyleSheet(
-            "background: transparent; border: 1px solid #333333; padding: 6px; font-family: Courier;")
+            "background: transparent; border: 1px solid #333333; padding: 6px; font-family: Courier; color: white;")
         self.main_layout.addWidget(self.entry_name)
 
-        # Description Input
+        # Description
         lbl_desc = QLabel("DESCRIBE THE IDEA...")
         lbl_desc.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-size: 10px; font-family: Courier;")
         self.main_layout.addWidget(lbl_desc)
         self.text_desc = QTextEdit()
-        self.text_desc.setStyleSheet(f"background-color: {COLOR_CARD}; border: none; font-family: Courier;")
+        self.text_desc.setStyleSheet(
+            f"background-color: {COLOR_CARD}; border: none; font-family: Courier; color: white;")
         self.main_layout.addWidget(self.text_desc)
 
         # Footer Actions
@@ -112,7 +115,6 @@ class IdeaPadWidgetMenu(QWidget):
         header.addWidget(lbl_title)
         self.main_layout.addLayout(header)
 
-        # ScrollArea für die Kacheln
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("background: transparent; border: none;")
@@ -124,24 +126,23 @@ class IdeaPadWidgetMenu(QWidget):
         if not db:
             empty_lbl = QLabel("ARCHIVE EMPTY")
             empty_lbl.setStyleSheet(f"color: {COLOR_DOT}; font-family: Courier;")
-            self.main_layout.addWidget(empty_lbl)
-            return
+            scroll_layout.addWidget(empty_lbl)
+        else:
+            for idea_id, data in reversed(list(db.items())):
+                card = QWidget()
+                card.setStyleSheet(f"background-color: {COLOR_CARD}; border-radius: 4px;")
+                card_layout = QVBoxLayout(card)
 
-        for idea_id, data in reversed(list(db.items())):
-            card = QWidget()
-            card.setStyleSheet(f"background-color: {COLOR_CARD}; border-radius: 4px;")
-            card_layout = QVBoxLayout(card)
+                title = QLabel(data["Name of Idea"])
+                title.setStyleSheet("color: #FFFFFF; font-family: Courier; font-weight: bold;")
+                card_layout.addWidget(title)
 
-            title = QLabel(data["Name of Idea"])
-            title.setStyleSheet("color: #FFFFFF; font-family: Courier; font-weight: bold;")
-            card_layout.addWidget(title)
-
-            if data["Description"].strip():
-                desc = QLabel(data["Description"])
-                desc.setWordWrap(True)
-                desc.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-family: Courier; font-size: 11px;")
-                card_layout.addWidget(desc)
-            scroll_layout.addWidget(card)
+                if data["Description"].strip():
+                    desc = QLabel(data["Description"])
+                    desc.setWordWrap(True)
+                    desc.setStyleSheet(f"color: {COLOR_TEXT_MUTED}; font-family: Courier; font-size: 11px;")
+                    card_layout.addWidget(desc)
+                scroll_layout.addWidget(card)
 
         scroll_layout.addStretch()
         scroll.setWidget(scroll_content)
@@ -162,81 +163,74 @@ class IdeaPadWidgetMenu(QWidget):
         save_to_json(db)
         self.close()
 
-    def leaveEvent(self, event):
-        """Automatisches Schließen, wenn man die Maus wegbewegt (Vanish)"""
-        self.close()
+    def changeEvent(self, event):
+        """Vanish-Effekt: Schließt das Fenster sofort, wenn es den Fokus verliert"""
+        if event.type() == QEvent.Type.ActivationChange and not self.isActiveWindow():
+            self.close()
 
 
-# --- NATIVE-LOOKING TASKBAR ICON OVERLAYS ---
+# --- NATIVE TASKBAR OVERLAYS (Position Fixed) ---
 class NativeTaskbarIconOverlay(QWidget):
     def __init__(self, mode="add", offset_x=0, symbol="+"):
         super().__init__()
         self.mode = mode
         self.symbol = symbol
 
-        # Komplett rahmenlos, transparent und überlagert alles, taucht NICHT in der Taskleiste als Fenster auf
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.SubWindow)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
-        # Fest definierte Größe für das Icon auf der Taskleiste
         self.resize(36, 36)
 
-        # Dynamische Positionierung unten rechts NEBEN der Wetteranzeige
+        # Positionierung korrigiert: Sitzt jetzt perfekt im freien Bereich vor der System-Tray-Leiste
         screen = QApplication.primaryScreen().geometry()
-        # Platziert das Icon exakt auf Höhe der Windows-Taskleiste
-        self.x_pos = screen.width() - 280 + offset_x
+        self.x_pos = screen.width() - 250 + offset_x
         self.y_pos = screen.height() - 42
         self.move(self.x_pos, self.y_pos)
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.active_widget = None
 
     def paintEvent(self, event):
-        """Zeichnet das wunderschöne, kreisrunde Nothing OS Icon direkt auf die Taskleiste"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Transparenter, weicher Hintergrund für Hover-Look (simuliert natives Windows-Verhalten)
+        # Subtiler Hintergrund bei Hover-Simulation
         painter.setPen(Qt.GlobalColor.transparent)
-        painter.setBrush(QColor(255, 255, 255, 15))
-        painter.drawRoundedRect(0, 0, self.width(), self.height(), 6, 6)
+        painter.setBrush(QColor(255, 255, 255, 12))
+        painter.drawRoundedRect(0, 0, self.width(), self.height(), 18, 18)
 
-        # Der weiße Nothing-Kreisring
+        # Weißer Nothing-Ring
         painter.setPen(QColor("#FFFFFF"))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(4, 4, 28, 28)
 
-        # Der ikonische rote Nothing-Punkt im inneren des Symbols
+        # Roter Punkt
         painter.setBrush(QColor(COLOR_DOT))
         painter.setPen(Qt.GlobalColor.transparent)
         painter.drawEllipse(22, 22, 6, 6)
 
-        # Das Textsymbol im Zentrum (+ oder ☰)
+        # Symbol (+ oder =)
         painter.setPen(QColor("#FFFFFF"))
-        painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.symbol)
         painter.end()
 
     def mousePressEvent(self, event):
-        """Bei Klick ploppt das gezeichnete Widget direkt nach oben auf"""
         if event.button() == Qt.MouseButton.LeftButton:
-            self.active_widget = IdeaPadWidgetMenu(mode=self.mode, launch_x=self.x_pos)
-            self.active_widget.show()
+            self.menu = IdeaPadWidgetMenu(mode=self.mode, launch_x=self.x_pos)
+            self.menu.show()
 
 
-# --- CORE APPLICATION ---
+# --- LAUNCHER ---
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    # Erzeugt die zwei runden Taskleisten-Icons
-    # Icon 1: Add Idea (+) Platziert links neben der Wetteranzeige
-    icon_add = NativeTaskbarIconOverlay(mode="add", offset_x=-50, symbol="+")
+    # Erstellt die beiden sauberen Icons nebeneinander im nun freien Bereich
+    icon_add = NativeTaskbarIconOverlay(mode="add", offset_x=-45, symbol="+")
     icon_add.show()
 
-    # Icon 2: Show Archive (☰) Direkt daneben platziert
-    icon_show = NativeTaskbarIconOverlay(mode="show", offset_x=-10, symbol="=")
+    icon_show = NativeTaskbarIconOverlay(mode="show", offset_x=0, symbol="=")
     icon_show.show()
 
     sys.exit(app.exec())
