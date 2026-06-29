@@ -47,8 +47,6 @@ class EssentialButton(tk.Button):
 
     def on_enter(self, e):
         self.config(bg="#1A1A1A")
-        # Subtile Micro-Animation: Button bewegt sich 1 Pixel nach oben
-        self.pack_configure(pady=self.pack_info()['pady'])
 
     def on_leave(self, e):
         self.config(bg=COLOR_CARD)
@@ -85,21 +83,16 @@ class IdeaPadApp:
         frame = self.frames[page_name]
         if page_name == "ShowIdeasPage":
             frame.refresh_list()
-
         frame.tkraise()
-        frame.animate_fade_in()  # Triggered die Einblende-Animation
+        frame.animate_fade_in()
 
 
 # --- MIXIN FOR ANIMATIONS ---
 class AnimatedFrame(tk.Frame):
-    """Fügt Widgets eine weiche Slide-In/Fade Animation hinzu"""
-
     def animate_fade_in(self):
-        # Alle Kinder-Widgets kurz unsichtbar machen bzw. deren Alpha simulieren
         widgets = self.winfo_children()
         for w in widgets:
             if hasattr(w, 'pack_info'):
-                # Subtiler Slide-Up Effekt beim Start
                 w.pack_configure(pady=(w.pack_info().get('pady', 0)))
 
 
@@ -188,7 +181,7 @@ class AddIdeaPage(AnimatedFrame):
         self.controller.show_frame("MainMenu")
 
 
-# --- 3. THE ARCHIVE FEED (With Inline Editing & Mousewheel Scroll) ---
+# --- 3. THE ARCHIVE FEED (Safe Configure & Inline Editing) ---
 class ShowIdeasPage(AnimatedFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLOR_BG)
@@ -203,7 +196,6 @@ class ShowIdeasPage(AnimatedFrame):
         tk.Label(header, text="Idea Archive", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(side="right",
                                                                                                       pady=5)
 
-        # Reiner, cleaner Canvas ohne sichtbare Windows-Scrollbars
         self.canvas = tk.Canvas(self, bg=COLOR_BG, highlightthickness=0)
         self.scrollable_frame = tk.Frame(self.canvas, bg=COLOR_BG)
 
@@ -216,12 +208,16 @@ class ShowIdeasPage(AnimatedFrame):
         self.canvas.bind('<Configure>', lambda event: self.canvas.itemconfig(self.canvas_window, width=event.width))
 
         self.canvas.pack(fill="both", expand=True)
-
-        # STYLISH SCROLLING: Direkt über das Mausrad scrollen (keine hässliche Leiste)
         self.bind_all("<MouseWheel>", self._on_mousewheel)
 
     def _on_mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        if self.winfo_containing(event.x_root, event.y_root):  # Scrollt nur, wenn die Maus im App-Fenster ist
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def safe_wrap(self, event, label_widget):
+        """Verhindert Terminal-Fehler beim Löschen/Schließen, indem die Existenz des Widgets geprüft wird"""
+        if label_widget.winfo_exists():
+            label_widget.config(wraplength=event.width - 40)
 
     def refresh_list(self):
         for widget in self.scrollable_frame.winfo_children():
@@ -243,7 +239,6 @@ class ShowIdeasPage(AnimatedFrame):
             tk.Label(meta_row, text=data.get('Date and Time', '-'), font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED,
                      bg=COLOR_CARD).pack(side="left")
 
-            # Action Links (Wipe & Edit)
             action_frame = tk.Frame(meta_row, bg=COLOR_CARD)
             action_frame.pack(side="right")
 
@@ -270,15 +265,14 @@ class ShowIdeasPage(AnimatedFrame):
                 desc_label = tk.Label(card, text=data["Description"], font=FONT_BODY, fg=COLOR_TEXT_MUTED,
                                       bg=COLOR_CARD, justify="left", anchor="w")
                 desc_label.pack(fill="x", pady=(6, 0))
-                card.bind("<Configure>", lambda event, lbl=desc_label: lbl.config(wraplength=event.width - 40))
+                # Nutzt jetzt die geschützte safe_wrap-Funktion
+                card.bind("<Configure>", lambda event, lbl=desc_label: self.safe_wrap(event, lbl))
 
     def start_inline_edit(self, card_frame, idea_id, old_data):
-        """Löscht die statische Ansicht der Karte und baut Textfelder direkt hinein"""
-        for w in card_frame.winfo_children():
-            if w != card_frame.winfo_children()[0]:  # Behalte die Meta-Leiste bei
-                w.destroy()
+        # Löscht alle Elemente außer der ersten Meta-Leiste für den Editier-Modus
+        for w in card_frame.winfo_children()[1:]:
+            w.destroy()
 
-        # Neues Editier-Interface auf der Karte generieren
         edit_name = tk.Entry(card_frame, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG, bd=0, highlightthickness=1,
                              highlightbackground="#333333", highlightcolor=COLOR_TEXT_MAIN)
         edit_name.insert(0, old_data["Name of Idea"])
@@ -289,10 +283,21 @@ class ShowIdeasPage(AnimatedFrame):
         edit_desc.insert("1.0", old_data["Description"])
         edit_desc.pack(fill="x", pady=5)
 
-        save_lbl = tk.Label(card_frame, text="[ Save Changes ]", font=FONT_LABEL, fg=COLOR_DOT, bg=COLOR_CARD,
-                            cursor="hand2")
-        save_lbl.pack(anchor="e", pady=(5, 0))
+        control_frame = tk.Frame(card_frame, bg=COLOR_CARD)
+        control_frame.pack(fill="x", pady=(5, 0))
 
+        # Cancel Option hinzugefügt
+        cancel_lbl = tk.Label(control_frame, text="[ Cancel ]", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_CARD,
+                              cursor="hand2")
+        cancel_lbl.pack(side="left", pady=5)
+        cancel_lbl.bind("<Enter>", lambda e: cancel_lbl.config(fg=COLOR_TEXT_MAIN))
+        cancel_lbl.bind("<Leave>", lambda e: cancel_lbl.config(fg=COLOR_TEXT_MUTED))
+        cancel_lbl.bind("<Button-1>", lambda
+            e: self.refresh_list())  # Lädt die Liste einfach neu (bricht ungespeicherte Änderungen ab)
+
+        save_lbl = tk.Label(control_frame, text="[ Save Changes ]", font=FONT_LABEL, fg=COLOR_DOT, bg=COLOR_CARD,
+                            cursor="hand2")
+        save_lbl.pack(side="right", pady=5)
         save_lbl.bind("<Button-1>",
                       lambda e: self.commit_inline_edit(idea_id, edit_name.get(), edit_desc.get("1.0", "end-1c")))
 
