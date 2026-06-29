@@ -1,7 +1,0 @@
-idbase = {
-    "ExampleIdea": "Hii Idee",
-
-
-
-
-}

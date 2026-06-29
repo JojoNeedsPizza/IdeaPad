@@ -1,0 +1,14 @@
+[
+    {
+        "Idea 1": "Smart Alarm Clock",
+        "Description": "An alarm clock that only goes off when you are in light sleep."
+    },
+    {
+        "Idea 2": "Auto Startup App",
+        "Description": "A Python background script that runs automatically on boot."
+    },
+    {
+        "Idea 3": "Solar Powered Keyboard",
+        "Description": "A keyboard that charges from room lighting."
+    }
+]
