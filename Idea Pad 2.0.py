@@ -5,11 +5,11 @@ import os
 import datetime
 
 # --- NOTHING ESSENTIAL SPACE DESIGN GUIDELINES ---
-COLOR_BG = "#000000"  # Reines Schwarz
-COLOR_CARD = "#121212"  # Essential Space Karten-Hintergrund
-COLOR_TEXT_MAIN = "#FFFFFF"  # Hochkontrast-Weiß
-COLOR_TEXT_MUTED = "#666666"  # Gedimmtes Grau für Systemdaten
-COLOR_DOT = "#FF0033"  # Nothing-Signalrot (Der ikonische Punkt)
+COLOR_BG = "#000000"
+COLOR_CARD = "#121212"
+COLOR_TEXT_MAIN = "#FFFFFF"
+COLOR_TEXT_MUTED = "#666666"
+COLOR_DOT = "#FF0033"
 
 FONT_DOTMATRIX = ("Courier", 24, "bold")
 FONT_LABEL = ("Courier", 10, "bold")
@@ -36,13 +36,11 @@ def save_to_json(data):
 
 # --- INTERACTIVE HOVER ELEMENTS ---
 class EssentialButton(tk.Button):
-    """Minimalistische Kapsel-Buttons wie im Nothing OS"""
-
     def __init__(self, master, text, command, **kwargs):
         super().__init__(
             master, text=text, command=command, font=FONT_BODY,
             fg=COLOR_TEXT_MAIN, bg=COLOR_CARD, activebackground=COLOR_TEXT_MAIN, activeforeground=COLOR_BG,
-            bd=0, highlightthickness=0, padx=20, pady=10, cursor="hand2", **kwargs
+            bd=0, highlightthickness=0, padx=20, pady=15, cursor="hand2", **kwargs
         )
         self.bind("<Enter>", lambda e: self.config(bg="#1A1A1A"))
         self.bind("<Leave>", lambda e: self.config(bg=COLOR_CARD))
@@ -54,10 +52,19 @@ class IdeaPadApp:
         self.root = root
         self.root.title("Essential Space // IdeaPad")
         self.root.geometry("600x650")
+        self.root.minimumsize = (450, 500)  # Verhindert, dass das GUI zu klein gequetscht wird
         self.root.configure(bg=COLOR_BG)
 
+        # Grid-Gewichtung für das Hauptfenster, damit der Container wachsen kann
+        self.root.rowconfigure(0, weight=1)
+        self.root.columnconfigure(0, weight=1)
+
         self.container = tk.Frame(self.root, bg=COLOR_BG)
-        self.container.pack(fill="both", expand=True, padx=25, pady=25)
+        self.container.grid(row=0, column=0, sticky="nsew", padx=25, pady=25)
+
+        # Grid-Gewichtung für den Container, damit die Unterseiten wachsen können
+        self.container.rowconfigure(0, weight=1)
+        self.container.columnconfigure(0, weight=1)
 
         self.frames = {}
         for F in (MainMenu, AddIdeaPage, ShowIdeasPage):
@@ -80,7 +87,6 @@ class MainMenu(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLOR_BG)
 
-        # Oben links platziertes Logo im typischen "Punkt-Stil"
         header_frame = tk.Frame(self, bg=COLOR_BG)
         header_frame.pack(fill="x", pady=(40, 60))
 
@@ -90,13 +96,13 @@ class MainMenu(tk.Frame):
                                                                                              pady=(15, 0))
         tk.Label(header_frame, text="// IDEAPAD CORE", font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(
             side="left", padx=5, pady=(12, 0))
-        # Zwei große Kacheln als Interface-Elemente
+
+        # Buttons dehnen sich dank fill="x" jetzt automatisch in die Breite aus
         EssentialButton(self, text="⚡ Capture Idea", command=lambda: controller.show_frame("AddIdeaPage")).pack(
             fill="x", pady=8)
         EssentialButton(self, text="📂 Open Memories", command=lambda: controller.show_frame("ShowIdeasPage")).pack(
             fill="x", pady=8)
 
-        # Ein dezenter Exit-Link ganz unten
         exit_lbl = tk.Label(self, text="[ Power Off ]", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
                             cursor="hand2")
         exit_lbl.pack(side="bottom", pady=20)
@@ -104,32 +110,31 @@ class MainMenu(tk.Frame):
         exit_lbl.bind("<Enter>", lambda e: exit_lbl.config(fg=COLOR_DOT))
         exit_lbl.bind("<Leave>", lambda e: exit_lbl.config(fg=COLOR_TEXT_MUTED))
 
-        # --- 2. THE CAPTURE INTERFACE ---
 
-
+# --- 2. THE CAPTURE INTERFACE ---
 class AddIdeaPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLOR_BG)
         self.controller = controller
 
         tk.Label(self, text="New Memory.", font=FONT_DOTMATRIX, fg=COLOR_TEXT_MAIN, bg=COLOR_BG, anchor="w").pack(
-            fill="x", pady=(10, 40))
+            fill="x", pady=(10, 30))
 
-        # Minimalistisches Eingabefeld (Keine Box, nur eine feine graue Linie unten drunter)
         tk.Label(self, text="CONCEPT IDENTIFIER", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, anchor="w").pack(
             fill="x")
         self.entry_name = tk.Entry(self, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                    insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                    highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
-        self.entry_name.pack(fill="x", pady=(5, 30), ipady=10)
+        self.entry_name.pack(fill="x", pady=(5, 25), ipady=10)
 
         tk.Label(self, text="THOUGHT DATA // NOTES", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
                  anchor="w").pack(fill="x")
+
+        # Das Textfeld expandiert jetzt flexibel nach unten, wenn das Fenster vergrößert wird!
         self.text_desc = tk.Text(self, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_CARD,
                                  insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=0, height=8)
-        self.text_desc.pack(fill="x", pady=(5, 20))
+        self.text_desc.pack(fill="both", expand=True, pady=(5, 20))
 
-        # Navigation Bar am unteren Rand
         footer = tk.Frame(self, bg=COLOR_BG)
         footer.pack(fill="x", side="bottom", pady=10)
 
@@ -165,7 +170,7 @@ class AddIdeaPage(tk.Frame):
         self.controller.show_frame("MainMenu")
 
 
-# --- 3. THE MEMORIES FEED (Essential Space View) ---
+# --- 3. THE MEMORIES FEED (Flexible Line Look) ---
 class ShowIdeasPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLOR_BG)
@@ -180,7 +185,7 @@ class ShowIdeasPage(tk.Frame):
         tk.Label(header, text="All Memories", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(side="right",
                                                                                                       pady=5)
 
-        # Der unauffällige Scroll-Bereich
+        # Canvas und Scrollbar nutzen expand=True und fill="both"
         self.canvas = tk.Canvas(self, bg=COLOR_BG, highlightthickness=0)
         self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview, bg=COLOR_BG)
         self.scrollable_frame = tk.Frame(self.canvas, bg=COLOR_BG)
@@ -190,8 +195,11 @@ class ShowIdeasPage(tk.Frame):
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        # Macht die innere Liste genauso breit wie das Canvas selbst
+        self.canvas.bind('<Configure>', lambda event: self.canvas.itemconfig(self.canvas_window, width=event.width))
 
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
@@ -206,20 +214,15 @@ class ShowIdeasPage(tk.Frame):
                      bg=COLOR_BG).pack(pady=80)
             return
 
-        self.scrollable_frame.grid_columnconfigure(0, weight=1)
-
-        # Genau wie im echten Space: Timeline-Karten
         for idea_id, data in reversed(list(db.items())):
             card = tk.Frame(self.scrollable_frame, bg=COLOR_CARD, padx=18, pady=18)
-            card.pack(fill="x", pady=6)
+            card.pack(fill="x", pady=6, expand=True)
 
-            # Obere Meta-Zeile
             meta_row = tk.Frame(card, bg=COLOR_CARD)
             meta_row.pack(fill="x", pady=(0, 10))
             tk.Label(meta_row, text=data.get('Date and Time', '-'), font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED,
                      bg=COLOR_CARD).pack(side="left")
 
-            # Subtiler Wipe-Link (Mülleimer) oben rechts in der Ecke
             lbl_del = tk.Label(meta_row, text="✕ Wipe", font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED, bg=COLOR_CARD,
                                cursor="hand2")
             lbl_del.pack(side="right")
@@ -227,15 +230,18 @@ class ShowIdeasPage(tk.Frame):
             lbl_del.bind("<Leave>", lambda e, l=lbl_del: l.config(fg=COLOR_TEXT_MUTED))
             lbl_del.bind("<Button-1>", lambda e, i=idea_id: self.delete_idea(i))
 
-            # Inhalt
-            tk.Label(card, text=data["Name of Idea"], font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_CARD, anchor="w",
-                     wraplength=500).pack(fill="x", pady=(0, 4))
+            # Titel
+            lbl_title = tk.Label(card, text=data["Name of Idea"], font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_CARD,
+                                 anchor="w")
+            lbl_title.pack(fill="x", pady=(0, 4))
 
-            # Wenn eine Beschreibung existiert, kriegt sie eine feine optische Trennung
+            # TRICK FÜR RESPONSIVEN TEXT UMBRUCH:
+            # Sobald sich die Kartengröße ändert, berechnen wir die "wraplength" neu!
             if data["Description"].strip():
                 desc_label = tk.Label(card, text=data["Description"], font=FONT_BODY, fg=COLOR_TEXT_MUTED,
-                                      bg=COLOR_CARD, wraplength=500, justify="left", anchor="w")
+                                      bg=COLOR_CARD, justify="left", anchor="w")
                 desc_label.pack(fill="x", pady=(6, 0))
+                card.bind("<Configure>", lambda event, lbl=desc_label: lbl.config(wraplength=event.width - 40))
 
     def delete_idea(self, idea_id):
         if messagebox.askyesno("Essential Space", "Wipe this memory permanent?"):
