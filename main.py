@@ -7,6 +7,10 @@ with open("database.json", "r", encoding="utf-8") as file:
     idea_list = json.load(file)
 
 
+# Testing
+nameofidea = "Hi"
+descriptionofidea = "Bye"
+
 countofideas = len(idea_list)
 
 coid = countofideas
@@ -20,8 +24,8 @@ datenbank = {}
 # Example
 # 3. Deine Formel angewendet: Wir fügen das Dictionary direkt unter der Zahl ein
 datenbank[f"Idea{coid}"] = {
-    "Name of Idea": "WLAN Kaffeemaschine",
-    "Description": "Brüht Kaffee, wenn der PC startet."
+    "Name of Idea": f'{nameofidea}',
+    "Description": f'{descriptionofidea}'
 }
 # Wenn du jetzt das Haupt-Dictionary druckst:
 print(datenbank)
