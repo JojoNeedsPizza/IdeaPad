@@ -1,4 +1,5 @@
 import json
+import os  # os hilft uns zu prüfen, ob die Datei schon existiert
 import datetime
 # No GUI for now!!!!
 
@@ -42,7 +43,7 @@ if nid == "":
     print("No Idea saved")
 
 else:
-    print("Your Idea: " + str(nid))
+
     print("Saved")
 
 
