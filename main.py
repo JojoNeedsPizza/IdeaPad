@@ -1,5 +1,10 @@
 import json
+import datetime
 # No GUI for now!!!!
+
+
+currentdateandtime = datetime.datetime.now()
+
 newidea = 0
 
 
@@ -16,19 +21,22 @@ countofideas = len(idea_list)
 coid = countofideas
 print(str(coid))
 
-newidea = input("Enter your Idea: ")
+nameofidea = input("Enter your Ideas Name: ")
 
-nid = newidea
+nid = nameofidea
 
-datenbank = {}
+currentdateandtime = datetime.datetime.now()
+cdnt = currentdateandtime
+databasetemp = {}
 # Example
 # 3. Deine Formel angewendet: Wir fügen das Dictionary direkt unter der Zahl ein
-datenbank[f"Idea{coid}"] = {
-    "Name of Idea": f'{nameofidea}',
-    "Description": f'{descriptionofidea}'
+databasetemp[f"Idea{coid}"] = {
+    "Name of Idea": f'{nid}',
+    "Description": f'{descriptionofidea}',
+    "Date and Time": f'{cdnt}'
 }
 # Wenn du jetzt das Haupt-Dictionary druckst:
-print(datenbank)
+print(databasetemp)
 
 if nid == "":
     print("No Idea saved")
