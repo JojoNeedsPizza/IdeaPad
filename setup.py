@@ -8,10 +8,10 @@ def setup_and_move():
     user_profile = os.environ.get("USERPROFILE")
     target_dir = os.path.join(user_profile, "Documents", "IdeaPad")
 
-    target_file_name = "main.pyw"
+    target_file_name = "main.py"
     destination_path = os.path.join(target_dir, target_file_name)
 
-    # 2. Find where main.pyw is right now (next to this setup script)
+    # 2. Find where main.py is right now (next to this setup script)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     source_path = os.path.join(current_dir, target_file_name)
 
