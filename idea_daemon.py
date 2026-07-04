@@ -15,13 +15,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QPointF, QPropertyAnimation, QEasingCurve, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
-# --- GLOBAL DAEMON KEYBINDS EXTENSION ---
-try:
-    from pynput import keyboard as pynput_keyboard
-except ImportError:
-    print("pynput dynamic dependency missing. Run: pip install pynput")
-    pynput_keyboard = None
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # DPI AWARENESS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -41,6 +34,13 @@ SWP_ZORDER_ONLY = (
         win32con.SWP_NOSIZE |
         win32con.SWP_NOACTIVATE
 )
+
+# Win32 Global Hotkey Modifiers & Codes
+WM_HOTKEY = 0x0312
+MOD_ALT = 0x0001
+MOD_SHIFT = 0x0004
+VK_A = 0x41  # 'A' key
+VK_S = 0x53  # 'S' key
 
 DATABASE_FILE = Path(__file__).parent / "database.json"
 SETTINGS_FILE = Path(__file__).parent / "settings.json"
@@ -108,16 +108,6 @@ def load_ideas() -> dict:
                 if isinstance(databasetemp, dict):
                     return databasetemp
         except (json.JSONDecodeError, Exception):
-            pass
-    return {}
-
-
-def load_settings() -> dict:
-    if SETTINGS_FILE.exists():
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as file:
-                return json.load(file)
-        except Exception:
             pass
     return {}
 
@@ -604,12 +594,11 @@ class ShowIdeasWindow(QWidget):
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(QPointF(self.win_w - 14, 14), 3, 3)
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # NothingDock — Haupt-Overlay (3 Buttons, Breite erhöht auf 240px)
 # ═══════════════════════════════════════════════════════════════════════════════
 class NothingDock(QWidget):
-    DOCK_W = 240  # Breite vergrößert für 3 Buttons
+    DOCK_W = 240
     DOCK_H = 38
     MARGIN = 8
     SCALE = 1.1
@@ -638,14 +627,82 @@ class NothingDock(QWidget):
         self._hover_x = -1
         self.setMouseTracking(True)
 
-        # Settings einlesen
-        self.settings = load_settings()
-        self._listener = None
-        self._setup_global_keybinds()
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # OPTIMIERTER SETTINGS.JSON HOTKEYS LOADER (Für <Prior> & <Next>)
+        # ═══════════════════════════════════════════════════════════════════════════════
+        self.vk_add_idea = []
+        self.vk_show_ideas = []
+        self.hotkey_add_active = False
+        self.hotkey_show_active = False
+        self.load_hotkeys_from_settings()
 
+        # Hintergrund-Timer für Fullscreen-Checks (alle 500ms)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update_state)
         self._timer.start(500)
+
+        # Hochperformanter Timer für globale Hotkeys (alle 50ms)
+        self._hotkey_timer = QTimer(self)
+        self._hotkey_timer.timeout.connect(self.check_global_hotkeys)
+        self._hotkey_timer.start(50)
+
+    def load_hotkeys_from_settings(self):
+        """Liest Tastenkombinationen direkt aus deiner settings.json"""
+        add_str = "<Prior>"
+        show_str = "<Next>"
+
+        if SETTINGS_FILE.exists():
+            try:
+                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    # Matcht exakt deine Keys aus der JSON
+                    add_str = config.get("keybind_new_idea", add_str)
+                    show_str = config.get("keybind_show_ideas", show_str)
+            except Exception as e:
+                print(f"Fehler beim Laden der settings.json: {e}")
+
+        # Konvertierung in native Windows-Keycodes
+        self.vk_add_idea = self._parse_hotkey_string(add_str)
+        self.vk_show_ideas = self._parse_hotkey_string(show_str)
+
+    def _parse_hotkey_string(self, hotkey_str: str) -> list[int]:
+        """Übersetzt Strings wie '<Prior>' oder 'Alt+<Prior>' in Windows Virtual Keys"""
+        vk_map = {
+            "alt": 0x12, "shift": 0x10, "ctrl": 0x11, "control": 0x11,
+            "win": 0x5B, "windows": 0x5B, "tab": 0x09, "enter": 0x0D, "space": 0x20,
+            "<prior>": 0x21, "prior": 0x21, "pageup": 0x21, "page up": 0x21,  # Bild auf
+            "<next>": 0x22, "next": 0x22, "pagedown": 0x22, "page down": 0x22   # Bild ab
+        }
+        vks = []
+        # Splittet bei eventuellen Kombinationen wie "Alt+<Prior>"
+        parts = [p.strip().lower() for p in hotkey_str.split("+")]
+        for part in parts:
+            if part in vk_map:
+                vks.append(vk_map[part])
+            elif len(part) == 1:
+                vks.append(ord(part.upper()))
+        return vks
+
+    def check_global_hotkeys(self):
+        """Überprüft im Hintergrund den Zustand der Tasten"""
+        try:
+            # 1. Hotkey für "New Idea" prüfen
+            if self.vk_add_idea and all(ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000 for vk in self.vk_add_idea):
+                if not self.hotkey_add_active:
+                    self.hotkey_add_active = True
+                    self.trigger_add_idea()
+            else:
+                self.hotkey_add_active = False
+
+            # 2. Hotkey für "Show Ideas" prüfen
+            if self.vk_show_ideas and all(ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000 for vk in self.vk_show_ideas):
+                if not self.hotkey_show_active:
+                    self.hotkey_show_active = True
+                    self.trigger_show_ideas()
+            else:
+                self.hotkey_show_active = False
+        except Exception as e:
+            print(f"Hotkey-Polling-Fehler: {e}")
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -660,13 +717,6 @@ class NothingDock(QWidget):
     def _update_state(self):
         if self._hwnd is None:
             return
-
-        # Einstellungen periodisch neu laden, falls sie im Hauptprogramm geändert wurden
-        current_settings = load_settings()
-        if current_settings != self.settings:
-            self.settings = current_settings
-            self._setup_global_keybinds()
-
         full = is_real_fullscreen()
         if full and not self._was_fullscreen:
             self._was_fullscreen = True
@@ -678,80 +728,6 @@ class NothingDock(QWidget):
             return
         if not full and self.isVisible():
             win32gui.SetWindowPos(self._hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, SWP_ZORDER_ONLY)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # GLOBAL KEYBIND DEPLOYMENT (THREAD-SAFE WITH QTIMER)
-    # ═══════════════════════════════════════════════════════════════════════════
-    def _setup_global_keybinds(self):
-        if self._listener:
-            self._listener.stop()
-            self._listener = None
-
-        if pynput_keyboard and self.settings.get("keybinds_enabled", False):
-            kb_new = self.settings.get("keybind_new_idea", "<Control-n>")
-            kb_show = self.settings.get("keybind_show_ideas", "<Control-s>")
-
-            pynput_new = self._convert_tk_to_pynput(kb_new)
-            pynput_show = self._convert_tk_to_pynput(kb_show)
-
-            hotkeys = {
-                pynput_new: lambda: QTimer.singleShot(0, self.trigger_add_idea),
-                pynput_show: lambda: QTimer.singleShot(0, self.trigger_show_ideas)
-            }
-
-            try:
-                self._listener = pynput_keyboard.GlobalHotKeys(hotkeys)
-                self._listener.start()
-            except Exception as e:
-                print(f"Keybind Daemon Error: {e}")
-
-    def _convert_tk_to_pynput(self, tk_bind):
-        """
-        Converts a Tkinter-style keybind string (e.g., '<Control-Shift-End>')
-        into a pynput-compatible string format (e.g., '<ctrl>+<shift>+<end>').
-        """
-        cleaned = tk_bind.strip("<>")
-        parts = cleaned.split("-")
-        pynput_parts = []
-
-        for p in parts:
-            p_low = p.lower()
-
-            # Modifiers
-            if p_low in ("control", "ctrl"):
-                pynput_parts.append("<ctrl>")
-            elif p_low == "shift":
-                pynput_parts.append("<shift>")
-            elif p_low in ("alt", "option"):
-                pynput_parts.append("<alt>")
-            elif p_low in ("command", "cmd", "win", "meta"):
-                pynput_parts.append("<cmd>")
-
-            # Special individual keys (pynput specific mapping)
-            elif p_low == "escape":
-                pynput_parts.append("<esc>")
-            elif p_low in ("pageup", "prior"):
-                pynput_parts.append("<page_up>")
-            elif p_low in ("pagedown", "next"):
-                pynput_parts.append("<page_down>")
-
-            # Standard special keys wrapped in brackets
-            elif p_low in (
-                    "space", "enter", "tab", "backspace",
-                    "up", "down", "left", "right",
-                    "end", "home", "insert", "delete"
-            ):
-                pynput_parts.append(f"<{p_low}>")
-
-            # Function keys (F1 - F20)
-            elif len(p_low) > 1 and p_low.startswith("f") and p_low[1:].isdigit():
-                pynput_parts.append(f"<{p_low}>")
-
-            # Regular alphanumeric characters
-            else:
-                pynput_parts.append(p_low)
-
-        return "+".join(pynput_parts)
 
     def _close_popup(self):
         if self.active_popup:
@@ -868,11 +844,6 @@ class NothingDock(QWidget):
         p.drawEllipse(QPointF(self.DOCK_W - 8, 8), 2.5, 2.5)
         p.end()
 
-    def cleanup(self):
-        if self._listener:
-            self._listener.stop()
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Entry Point
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -880,11 +851,6 @@ if __name__ == "__main__":
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
-
     dock = NothingDock()
     dock.show()
-
-    # Sicherstellen, dass der Keybind-Thread beim Schließen des Daemons gestoppt wird
-    app.aboutToQuit.connect(dock.cleanup)
-
     sys.exit(app.exec())
