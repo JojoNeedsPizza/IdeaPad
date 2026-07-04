@@ -34,7 +34,7 @@ Just run: <br><br>
 <br><br>
 Or use the batch File in the Release to install the requirements.
 <br>
-<h2>Preview of Versions</h2>
+<h2>All Versions:</h2>
 <h3>GUI Version</h3>
 <hr>
 <h4>Main Menu:</h4>
