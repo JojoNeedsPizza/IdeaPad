@@ -34,6 +34,19 @@ Just run: <br><br>
 <br><br>
 Or use the batch File in the Release to install the requirements.
 <br>
+<h2>How the Program Works</h2>
+So, first the Program loads in the .json file, where all the Ideas will be saved. There it counts the Ideas to give the New Idea 
+a number (you have two Ideas in the JSON and create the 3rd. This Idea will be Idea3). Then it asks you to
+Input name and Description of your Idea to temporarly save it in Variables (Name: nameofidea, Description: descriptionofidea). <br><br>
+
+<img width="511" height="376" alt="grafik" src="https://github.com/user-attachments/assets/9c054d23-4cdc-41f9-a2de-e51c5e926588" />
+Then it will get your Current Date and Time to tempsave it in 
+
+The Program now will save your Idea in a JSON File, in this Structure:
+<br><br>
+<img width="499.5" height="118.5" alt="grafik" src="https://github.com/user-attachments/assets/505c9601-9361-41e5-b225-12b95f4a53fe" />
+
+
 <h2>All Versions:</h2>
 <h3>GUI Version</h3>
 <hr>
