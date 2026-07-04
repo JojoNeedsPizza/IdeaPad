@@ -1,8 +1,29 @@
+import sys
+import os
+import subprocess
 import tkinter as tk
 from tkinter import messagebox
 import json
-import os
 import datetime
+
+# --- MULTIPLEXING CHECK FOR PYINSTALLER ---
+# Wenn diese Datei/EXE mit dem Argument '--daemon' aufgerufen wird,
+# starten wir direkt das PyQt-Dock und überspringen Tkinter komplett.
+# --- MULTIPLEXING CHECK FOR PYINSTALLER ---
+if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
+    try:
+        from PyQt5.QtWidgets import QApplication
+    except ImportError:
+        from PyQt6.QtWidgets import QApplication
+
+    from idea_daemon import NothingDock
+
+    app = QApplication(sys.argv)
+    dock = NothingDock()
+    dock.show()
+
+    # AUCH HIER ANPASSEN:
+    sys.exit(app.exec() if hasattr(app, 'exec') else app.exec())
 
 # --- NOTHING DESIGN GUIDELINES ---
 COLOR_BG = "#000000"
@@ -58,6 +79,17 @@ def load_settings():
 def save_settings(data):
     with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
+
+
+# --- LAUNCHER LOGIC FOR SINGLE EXE ---
+def launch_dock_bar():
+    """Startet das Dock sauber als separaten Prozess – egal ob als Skript oder EXE."""
+    if getattr(sys, 'frozen', False):
+        # Wenn als EXE kompiliert: Starte eine zweite Instanz der EXE mit dem Flag
+        subprocess.Popen([sys.executable, "--daemon"])
+    else:
+        # Im Editor (Development): Starte das rohe Python-Skript
+        subprocess.Popen([sys.executable, "idea_daemon.py"])
 
 
 # --- HOVER & ANIMATION ELEMENTS ---
@@ -137,6 +169,10 @@ class IdeaPadApp:
         self.show_frame("MainMenu")
         self.apply_global_keybinds()
 
+        # Falls Autostart für die Bar aktiv ist, beim App-Start triggern
+        if self.settings.get("autostart_bar", False):
+            launch_dock_bar()
+
     def show_frame(self, page_name):
         frame = self.frames[page_name]
         if page_name == "ShowIdeasPage":
@@ -147,7 +183,7 @@ class IdeaPadApp:
         frame.animate_fade_in()
 
     def apply_global_keybinds(self):
-        """Deaktiviert: Keybinds funktionieren in dieser Anwendung nicht mehr."""
+        """Deaktiviert: Globale Keybinds blockieren hier nichts mehr."""
         pass
 
 
@@ -409,9 +445,9 @@ class SettingsPage(AnimatedFrame):
             side="left")
 
         btn_close_bar = tk.Button(
-            row_close, text="[ Close Bar ]", font=FONT_LABEL, bd=0, highlightthickness=0,
-            fg=COLOR_DOT, bg=COLOR_BG, activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
-            cursor="hand2", command=self.close_dock_bar_signal
+            row_close, text="[ Launch Bar ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            fg=COLOR_TEXT_MAIN, bg=COLOR_BG, activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
+            cursor="hand2", command=self.open_dock_bar_signal
         )
         btn_close_bar.pack(side="right")
 
@@ -466,25 +502,21 @@ class SettingsPage(AnimatedFrame):
 
     def record_key(self, event, entry_widget):
         modifiers = []
-        # Bitmask-Checks für Modifikatoren
         if event.state & 4: modifiers.append("Control")
         if event.state & 1: modifiers.append("Shift")
         if event.state & 8: modifiers.append("Alt")
 
         key = event.keysym
 
-        # Falls die gedrückte Taste selbst nur ein Modifikator ist, fangen wir sie ab
         if key in ("Control_L", "Control_R", "Shift_L", "Shift_R", "Alt_L", "Alt_R", "Win_L", "Win_R"):
             display_str = "-".join(modifiers) if modifiers else key.split('_')[0]
             entry_widget.delete(0, "end")
             entry_widget.insert(0, f"<{display_str}>")
             return "break"
 
-        # Tkinter bevorzugt Kleinbuchstaben bei standardmäßigen Buchstaben-Binds
         if len(key) == 1 and key.isalpha():
             key = key.lower()
 
-        # Sauberes Zusammenbauen des Tkinter-kompatiblen Bind-Strings
         if modifiers:
             final_str = f"<{'-'.join(modifiers)}-{key}>"
         else:
@@ -492,12 +524,11 @@ class SettingsPage(AnimatedFrame):
 
         entry_widget.delete(0, "end")
         entry_widget.insert(0, final_str)
-        return "break"  # Verhindert, dass normaler Text parallel reingeschrieben wird
+        return "break"
 
     def stop_recording(self, event, entry_widget):
         current_text = entry_widget.get()
 
-        # Abfangen falls abgebrochen wurde oder unvollständige Modifikatoren herumstehen
         if current_text in ("", "[ Listening... ]") or "_" in current_text:
             s = self.controller.settings
             entry_widget.delete(0, "end")
@@ -506,12 +537,9 @@ class SettingsPage(AnimatedFrame):
             else:
                 entry_widget.insert(0, s.get("keybind_show_ideas", "<Control-s>"))
 
-        # Design zurücksetzen und Focus abziehen -> Sichert das "Let go"-Event
         entry_widget.config(fg=COLOR_TEXT_MAIN, highlightcolor=COLOR_TEXT_MAIN, highlightbackground="#222222")
         self.focus_set()
         return "break"
-
-    # --- END RECORDER CORE ---
 
     def load_current_settings_to_ui(self):
         s = self.controller.settings
@@ -536,8 +564,8 @@ class SettingsPage(AnimatedFrame):
     def handle_toggle_change(self, state):
         pass
 
-    def close_dock_bar_signal(self):
-        messagebox.showinfo("System Core", "Close command sent to overlay bar interface.")
+    def open_dock_bar_signal(self):
+        launch_dock_bar()
 
     def save_current_settings(self):
         updated_settings = {
