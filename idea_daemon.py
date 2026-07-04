@@ -9,7 +9,7 @@ import win32con
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QTextEdit, QFrame
+    QLabel, QLineEdit, QFrame, QScrollArea, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer, QPointF, QPropertyAnimation, QEasingCurve, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
@@ -174,29 +174,33 @@ class GlyphButton:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# AddIdeaWindow (Mit Animationen)
+# AddIdeaWindow (Eingabe- & Edit-Menü)
 # ═══════════════════════════════════════════════════════════════════════════════
 class AddIdeaWindow(QWidget):
-    def __init__(self, dock_x: int, dock_y: int, dock_w: int):
+    def __init__(self, dock_x: int, dock_y: int, dock_w: int, dock_parent, edit_key=None, current_name="",
+                 current_desc=""):
         super().__init__()
+        self.dock_parent = dock_parent
+        self.edit_key = edit_key
+
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.win_w, self.win_h = 280, 140
+        # Breite auf 320 angepasst für einheitlichen Look
+        self.win_w, self.win_h = 320, 155
         self.target_px = (dock_x + dock_w) - self.win_w
         self.target_py = dock_y - self.win_h - 8
 
-        # Startet leicht nach unten versetzt und unsichtbar für die Animation
         self.setGeometry(self.target_px, self.target_py + 12, self.win_w, self.win_h)
         self.setWindowOpacity(0.0)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(16, 14, 16, 12)
+        layout.setSpacing(6)
 
         header_row = QHBoxLayout()
-        lbl = QLabel("NEW IDEA")
+        lbl = QLabel("EDIT IDEA" if self.edit_key else "NEW IDEA")
         lbl.setStyleSheet(
             "color: #666666; font-family: 'Segoe UI'; font-size: 9px; font-weight: bold; letter-spacing: 2px;")
         header_row.addWidget(lbl)
@@ -208,31 +212,66 @@ class AddIdeaWindow(QWidget):
                 background: transparent;
                 color: #EEEEEE;
                 border: none;
-                border-bottom: 1px solid #333333;
+                border-bottom: 1px solid #222222;
                 padding: 4px 0px;
                 font-family: 'Segoe UI';
                 font-size: 13px;
             }
-            QLineEdit:focus { border-bottom: 1px solid #888888; }
+            QLineEdit:focus { border-bottom: 1px solid #666666; }
         """
 
         self.name_field = QLineEdit()
         self.name_field.setPlaceholderText("Enter your Idea's Name...")
         self.name_field.setStyleSheet(input_style)
+        self.name_field.setText(current_name)
         self.name_field.returnPressed.connect(self._save_and_close)
         layout.addWidget(self.name_field)
 
         self.desc_field = QLineEdit()
         self.desc_field.setPlaceholderText("Describe this Idea...")
         self.desc_field.setStyleSheet(input_style)
+        self.desc_field.setText(current_desc)
         self.desc_field.returnPressed.connect(self._save_and_close)
         layout.addWidget(self.desc_field)
 
+        layout.addStretch()
+
+        # Action-Buttons (BACK & SAVE)
+        actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(12)
+        actions_layout.addStretch()
+
+        button_style = """
+            QPushButton {
+                background: transparent;
+                color: #555555;
+                border: none;
+                font-family: 'Segoe UI';
+                font-size: 10px;
+                font-weight: bold;
+                letter-spacing: 1.5px;
+                padding: 4px 2px;
+            }
+            QPushButton:hover { color: #EEEEEE; }
+        """
+
+        self.back_btn = QPushButton("BACK")
+        self.back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.back_btn.setStyleSheet(button_style)
+        self.back_btn.clicked.connect(self._handle_back)
+        actions_layout.addWidget(self.back_btn)
+
+        self.save_btn = QPushButton("SAVE")
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save_btn.setStyleSheet(button_style)
+        self.save_btn.clicked.connect(self._save_and_close)
+        actions_layout.addWidget(self.save_btn)
+
+        layout.addLayout(actions_layout)
         self.name_field.setFocus()
 
     def showEvent(self, event):
         super().showEvent(event)
-        # Einblende-Animation (Slide up & Fade in)
         self.anim_in_opacity = QPropertyAnimation(self, b"windowOpacity")
         self.anim_in_opacity.setDuration(250)
         self.anim_in_opacity.setStartValue(0.0)
@@ -249,7 +288,6 @@ class AddIdeaWindow(QWidget):
         self.anim_in_pos.start()
 
     def fade_out_and_close(self):
-        # Ausblende-Animation (Slide down & Fade out)
         self.anim_out_opacity = QPropertyAnimation(self, b"windowOpacity")
         self.anim_out_opacity.setDuration(200)
         self.anim_out_opacity.setStartValue(self.windowOpacity())
@@ -265,6 +303,11 @@ class AddIdeaWindow(QWidget):
         self.anim_out_opacity.finished.connect(self.close)
         self.anim_out_opacity.start()
         self.anim_out_pos.start()
+
+    def _handle_back(self):
+        self.fade_out_and_close()
+        if self.edit_key:
+            QTimer.singleShot(220, self.dock_parent.trigger_show_ideas)
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -282,7 +325,7 @@ class AddIdeaWindow(QWidget):
         descriptionofidea = self.desc_field.text().strip()
 
         if nid == "":
-            self.fade_out_and_close()
+            self._handle_back()
             return
 
         databasetemp = {}
@@ -293,74 +336,184 @@ class AddIdeaWindow(QWidget):
                 except json.JSONDecodeError:
                     databasetemp = {}
 
-                if isinstance(databasetemp, list):
-                    databasetemp = {}
-
-        countofideas = len(databasetemp)
-        coid = countofideas + 1
-
         currentdateandtime = datetime.datetime.now()
         months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         date_str = f"{currentdateandtime.day} {months[currentdateandtime.month - 1]} {currentdateandtime.year} // {currentdateandtime.strftime('%H:%M')}"
 
-        databasetemp[f"Idea{coid}"] = {
-            "Name of Idea": f'{nid}',
-            "Description": f'{descriptionofidea}',
-            "Date and Time": date_str
-        }
-
-        with open(DATABASE_FILE, "w", encoding="utf-8") as file:
-            json.dump(databasetemp, file, indent=4)
-
-        self.fade_out_and_close()
+        if self.edit_key and self.edit_key in databasetemp:
+            databasetemp[self.edit_key] = {
+                "Name of Idea": f'{nid}',
+                "Description": f'{descriptionofidea}',
+                "Date and Time": date_str
+            }
+            with open(DATABASE_FILE, "w", encoding="utf-8") as file:
+                json.dump(databasetemp, file, indent=4)
+            self.fade_out_and_close()
+            QTimer.singleShot(220, self.dock_parent.trigger_show_ideas)
+        else:
+            countofideas = len(databasetemp)
+            coid = countofideas + 1
+            databasetemp[f"Idea{coid}"] = {
+                "Name of Idea": f'{nid}',
+                "Description": f'{descriptionofidea}',
+                "Date and Time": date_str
+            }
+            with open(DATABASE_FILE, "w", encoding="utf-8") as file:
+                json.dump(databasetemp, file, indent=4)
+            self.fade_out_and_close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ShowIdeasWindow (Mit Animationen)
+# Nativer Idea-Card Widget Block
+# ═══════════════════════════════════════════════════════════════════════════════
+class IdeaCard(QFrame):
+    def __init__(self, key, name, desc, date, on_edit, on_delete):
+        super().__init__()
+        self.key = key
+        self.name = name
+        self.desc = desc
+        self.date = date
+        self.on_edit = on_edit
+        self.on_delete = on_delete
+
+        self.setObjectName("IdeaCardFrame")
+        self.set_normal_style()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(4)
+
+        header = QHBoxLayout()
+        date_lbl = QLabel(self.date)
+        date_lbl.setStyleSheet("color: #555555; font-size: 10px; font-family: 'Courier New', monospace;")
+        header.addWidget(date_lbl)
+        header.addStretch()
+
+        edit_btn = QPushButton("EDIT")
+        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_btn.setStyleSheet("""
+            QPushButton { background: transparent; color: #444444; border: none; font-family: 'Segoe UI'; font-size: 9px; font-weight: bold; padding: 0px 2px; }
+            QPushButton:hover { color: #EEEEEE; }
+        """)
+        edit_btn.clicked.connect(lambda: self.on_edit(self.key, self.name, self.desc))
+        header.addWidget(edit_btn)
+
+        sep = QLabel("//")
+        sep.setStyleSheet("color: #252525; font-size: 9px; font-family: 'Segoe UI'; font-weight: bold;")
+        header.addWidget(sep)
+
+        del_btn = QPushButton("DELETE")
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        del_btn.setStyleSheet("""
+            QPushButton { background: transparent; color: #444444; border: none; font-family: 'Segoe UI'; font-size: 9px; font-weight: bold; padding: 0px 2px; }
+            QPushButton:hover { color: #E52B1F; }
+        """)
+        del_btn.clicked.connect(lambda: self.on_delete(self.key))
+        header.addWidget(del_btn)
+
+        layout.addLayout(header)
+
+        name_lbl = QLabel(self.name)
+        name_lbl.setWordWrap(True)
+        name_lbl.setStyleSheet(
+            "color: #FFFFFF; font-size: 13px; font-weight: bold; font-family: 'Segoe UI', Arial; padding-top: 2px;")
+        layout.addWidget(name_lbl)
+
+        if self.desc:
+            desc_lbl = QLabel(self.desc)
+            desc_lbl.setWordWrap(True)
+            desc_lbl.setStyleSheet("color: #888888; font-size: 11px; font-family: 'Segoe UI', Arial; padding-top: 2px;")
+            layout.addWidget(desc_lbl)
+
+    def set_normal_style(self):
+        self.setStyleSheet("""
+            QFrame#IdeaCardFrame {
+                background-color: #151515;
+                border: 1px solid #222222;
+                border-radius: 4px;
+            }
+        """)
+
+    def set_hover_style(self):
+        self.setStyleSheet("""
+            QFrame#IdeaCardFrame {
+                background-color: #191919;
+                border: 1px solid #333333;
+                border-radius: 4px;
+            }
+        """)
+
+    def enterEvent(self, event):
+        self.set_hover_style()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.set_normal_style()
+        super().leaveEvent(event)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ShowIdeasWindow (Breite auf 320px erhöht gegen horizontalen Cutoff)
 # ═══════════════════════════════════════════════════════════════════════════════
 class ShowIdeasWindow(QWidget):
-    def __init__(self, dock_x: int, dock_y: int, dock_w: int):
+    def __init__(self, dock_x: int, dock_y: int, dock_w: int, dock_parent):
         super().__init__()
+        self.dock_parent = dock_parent
+
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.win_w, self.win_h = 280, 260
+        # Breite von 280 auf 320 erhöht, um dem Text rechts Luft zu geben
+        self.win_w, self.win_h = 320, 360
         self.target_px = (dock_x + dock_w) - self.win_w
         self.target_py = dock_y - self.win_h - 8
 
-        # Startet leicht nach unten versetzt und unsichtbar für die Animation
         self.setGeometry(self.target_px, self.target_py + 12, self.win_w, self.win_h)
         self.setWindowOpacity(0.0)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(16, 14, 16, 14)
+        self.main_layout.setSpacing(10)
 
         lbl = QLabel("SAVED IDEAS")
         lbl.setStyleSheet(
             "color: #666666; font-family: 'Segoe UI'; font-size: 9px; font-weight: bold; letter-spacing: 2px;")
-        layout.addWidget(lbl)
+        self.main_layout.addWidget(lbl)
 
-        self.text = QTextEdit()
-        self.text.setReadOnly(True)
-        self.text.setFrameStyle(QFrame.Shape.NoFrame)
-        self.text.setStyleSheet("""
-            QTextEdit {
-                background: transparent;
-                color: #CCCCCC;
-                border: none;
-                font-family: 'Segoe UI';
-            }
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self.scroll.setStyleSheet("""
+            QScrollArea { background: transparent; border: none; }
             QScrollBar:vertical { background: #111111; width: 4px; margin: 0; }
             QScrollBar::handle:vertical { background: #333333; border-radius: 2px; }
+            QScrollBar::handle:vertical:hover { background: #555555; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
         """)
 
+        self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background: transparent;")
+        self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(0, 0, 4, 0)
+        self.scroll_layout.setSpacing(8)
+
+        self.scroll.setWidget(self.scroll_content)
+        self.main_layout.addWidget(self.scroll)
+
+        self.refresh_ideas()
+
+    def refresh_ideas(self):
+        while self.scroll_layout.count():
+            item = self.scroll_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
         ideas = load_ideas()
         if ideas:
-            html_cards = []
-
             def get_key_num(k):
                 if k.startswith("Idea") and k[4:].isdigit():
                     return int(k[4:])
@@ -376,36 +529,31 @@ class ShowIdeasWindow(QWidget):
                     date = item.get("Date and Time", "")
                 else:
                     name = str(item)
-                    desc = ""
-                    date = ""
+                    desc, date = "", ""
 
-                card_html = f"""
-                <div style="background-color: #151515; border: 1px solid #222222; margin-bottom: 8px; padding: 10px;">
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                        <tr>
-                            <td style="color: #555555; font-size: 10px; font-family: 'Courier New', monospace;">{date}</td>
-                        </tr>
-                        <tr>
-                            <td style="color: #FFFFFF; font-size: 13px; font-weight: bold; font-family: 'Segoe UI', Arial; padding-top: 6px; padding-bottom: 4px;">{name}</td>
-                        </tr>
-                        <tr>
-                            <td style="color: #888888; font-size: 11px; font-family: 'Segoe UI', Arial;">{desc if desc else '&nbsp;'}</td>
-                        </tr>
-                    </table>
-                </div>
-                """
-                html_cards.append(card_html)
+                card = IdeaCard(key, name, desc, date, self.handle_edit, self.handle_delete)
+                self.scroll_layout.addWidget(card)
 
-            self.text.setHtml("".join(html_cards))
+            self.scroll_layout.addStretch()
         else:
-            self.text.setHtml(
-                "<div style='color: #555555; font-style: italic; font-size: 12px;'>No ideas yet.<br>Press the + button to add one.</div>")
+            empty_lbl = QLabel("No ideas yet.\nPress the + button to add one.")
+            empty_lbl.setStyleSheet("color: #555555; font-family: 'Segoe UI'; font-size: 12px; font-style: italic;")
+            empty_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            self.scroll_layout.addWidget(empty_lbl)
 
-        layout.addWidget(self.text)
+    def handle_delete(self, key):
+        ideas = load_ideas()
+        if key in ideas:
+            del ideas[key]
+            with open(DATABASE_FILE, "w", encoding="utf-8") as file:
+                json.dump(ideas, file, indent=4)
+        self.refresh_ideas()
+
+    def handle_edit(self, key, name, desc):
+        self.dock_parent.trigger_edit_idea(key, name, desc)
 
     def showEvent(self, event):
         super().showEvent(event)
-        # Einblende-Animation (Slide up & Fade in)
         self.anim_in_opacity = QPropertyAnimation(self, b"windowOpacity")
         self.anim_in_opacity.setDuration(250)
         self.anim_in_opacity.setStartValue(0.0)
@@ -497,7 +645,6 @@ class NothingDock(QWidget):
     def _close_popup(self):
         if self.active_popup:
             try:
-                # Prüft, ob es sich um das Add-Fenster handelt, das ein flüssiges Ausblenden unterstützt
                 if hasattr(self.active_popup, 'fade_out_and_close'):
                     self.active_popup.fade_out_and_close()
                 else:
@@ -508,14 +655,25 @@ class NothingDock(QWidget):
 
     def trigger_add_idea(self):
         self._close_popup()
-        self.active_popup = AddIdeaWindow(self.dock_x, self.dock_y, self.DOCK_W)
+        self.active_popup = AddIdeaWindow(self.dock_x, self.dock_y, self.DOCK_W, dock_parent=self)
+        self.active_popup.show()
+        self.active_popup.raise_()
+        self.active_popup.activateWindow()
+
+    def trigger_edit_idea(self, edit_key, current_name, current_desc):
+        self._close_popup()
+        self.active_popup = AddIdeaWindow(
+            self.dock_x, self.dock_y, self.DOCK_W,
+            dock_parent=self, edit_key=edit_key,
+            current_name=current_name, current_desc=current_desc
+        )
         self.active_popup.show()
         self.active_popup.raise_()
         self.active_popup.activateWindow()
 
     def trigger_show_ideas(self):
         self._close_popup()
-        self.active_popup = ShowIdeasWindow(self.dock_x, self.dock_y, self.DOCK_W)
+        self.active_popup = ShowIdeasWindow(self.dock_x, self.dock_y, self.DOCK_W, dock_parent=self)
         self.active_popup.show()
         self.active_popup.raise_()
         self.active_popup.activateWindow()
