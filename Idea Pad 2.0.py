@@ -147,6 +147,7 @@ class IdeaPadApp:
         frame.animate_fade_in()
 
     def apply_global_keybinds(self):
+        # Alle potenziellen alten Binds sauber lösen
         self.root.unbind_all("<Control-n>")
         self.root.unbind_all("<Control-s>")
 
@@ -161,17 +162,15 @@ class IdeaPadApp:
                 print(f"Keybind binding failed: {e}")
 
 
-# --- MIXIN FOR ANIMATIONS (Sicher gegen unsichtbare Widgets) ---
+# --- MIXIN FOR ANIMATIONS ---
 class AnimatedFrame(tk.Frame):
     def animate_fade_in(self):
         widgets = self.winfo_children()
         for w in widgets:
             try:
-                # Prüft, ob das Widget aktuell wirklich aktiv gepackt ist
                 info = w.pack_info()
                 w.pack_configure(pady=(info.get('pady', 0)))
             except tk.TclError:
-                # Ignoriert Widgets, die mit pack_forget() versteckt sind
                 pass
 
 
@@ -397,7 +396,7 @@ class ShowIdeasPage(AnimatedFrame):
                 self.refresh_list()
 
 
-# --- 4. THE SYSTEM SETTINGS INTERFACE ---
+# --- 4. THE SYSTEM SETTINGS INTERFACE (With Interactive Key-Recorder) ---
 class SettingsPage(AnimatedFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLOR_BG)
@@ -438,19 +437,28 @@ class SettingsPage(AnimatedFrame):
         # --- Sub-Section: Keybind Configuration Fields ---
         self.sub_keybind_frame = tk.Frame(self, bg=COLOR_CARD, padx=15, pady=15)
 
-        tk.Label(self.sub_keybind_frame, text="CAPTURE NEW IDEA BIND", font=FONT_LABEL, fg=COLOR_TEXT_MUTED,
-                 bg=COLOR_CARD, anchor="w").pack(fill="x")
+        tk.Label(self.sub_keybind_frame, text="CAPTURE NEW IDEA BIND (CLICK TO RECORD)", font=FONT_LABEL,
+                 fg=COLOR_TEXT_MUTED, bg=COLOR_CARD, anchor="w").pack(fill="x")
         self.entry_kb_new = tk.Entry(self.sub_keybind_frame, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                      insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                      highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
         self.entry_kb_new.pack(fill="x", pady=(4, 12), ipady=6)
 
-        tk.Label(self.sub_keybind_frame, text="OPEN ARCHIVE BIND", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_CARD,
-                 anchor="w").pack(fill="x")
+        tk.Label(self.sub_keybind_frame, text="OPEN ARCHIVE BIND (CLICK TO RECORD)", font=FONT_LABEL,
+                 fg=COLOR_TEXT_MUTED, bg=COLOR_CARD, anchor="w").pack(fill="x")
         self.entry_kb_show = tk.Entry(self.sub_keybind_frame, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                       insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                       highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
         self.entry_kb_show.pack(fill="x", pady=(4, 4), ipady=6)
+
+        # Event-Bindings für interaktive Tastenaufnahme anheften
+        self.entry_kb_new.bind("<FocusIn>", lambda e: self.start_recording(self.entry_kb_new))
+        self.entry_kb_new.bind("<KeyPress>", lambda e: self.record_key(e, self.entry_kb_new))
+        self.entry_kb_new.bind("<KeyRelease>", lambda e: self.stop_recording(e, self.entry_kb_new))
+
+        self.entry_kb_show.bind("<FocusIn>", lambda e: self.start_recording(self.entry_kb_show))
+        self.entry_kb_show.bind("<KeyPress>", lambda e: self.record_key(e, self.entry_kb_show))
+        self.entry_kb_show.bind("<KeyRelease>", lambda e: self.stop_recording(e, self.entry_kb_show))
 
         # Footer Actions
         footer = tk.Frame(self, bg=COLOR_BG)
@@ -460,6 +468,61 @@ class SettingsPage(AnimatedFrame):
                   activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
                   command=lambda: controller.show_frame("MainMenu")).pack(side="left")
         EssentialButton(footer, text="Apply Changes", command=self.save_current_settings).pack(side="right")
+
+    # --- INTERACTIVE SHORTCUT RECORDER CORE ---
+    def start_recording(self, entry_widget):
+        entry_widget.delete(0, "end")
+        entry_widget.insert(0, "[ Listening... ]")
+        entry_widget.config(fg=COLOR_DOT, highlightcolor=COLOR_DOT, highlightbackground=COLOR_DOT)
+
+    def record_key(self, event, entry_widget):
+        modifiers = []
+        # Bitmask-Checks für Modifikatoren
+        if event.state & 4: modifiers.append("Control")
+        if event.state & 1: modifiers.append("Shift")
+        if event.state & 8: modifiers.append("Alt")
+
+        key = event.keysym
+
+        # Falls die gedrückte Taste selbst nur ein Modifikator ist, fangen wir sie ab
+        if key in ("Control_L", "Control_R", "Shift_L", "Shift_R", "Alt_L", "Alt_R", "Win_L", "Win_R"):
+            display_str = "-".join(modifiers) if modifiers else key.split('_')[0]
+            entry_widget.delete(0, "end")
+            entry_widget.insert(0, f"<{display_str}>")
+            return "break"
+
+        # Tkinter bevorzugt Kleinbuchstaben bei standardmäßigen Buchstaben-Binds
+        if len(key) == 1 and key.isalpha():
+            key = key.lower()
+
+        # Sauberes Zusammenbauen des Tkinter-kompatiblen Bind-Strings
+        if modifiers:
+            final_str = f"<{'-'.join(modifiers)}-{key}>"
+        else:
+            final_str = f"<{key}>"
+
+        entry_widget.delete(0, "end")
+        entry_widget.insert(0, final_str)
+        return "break"  # Verhindert, dass normaler Text parallel reingeschrieben wird
+
+    def stop_recording(self, event, entry_widget):
+        current_text = entry_widget.get()
+
+        # Abfangen falls abgebrochen wurde oder unvollständige Modifikatoren herumstehen
+        if current_text in ("", "[ Listening... ]") or "_" in current_text:
+            s = self.controller.settings
+            entry_widget.delete(0, "end")
+            if entry_widget == self.entry_kb_new:
+                entry_widget.insert(0, s.get("keybind_new_idea", "<Control-n>"))
+            else:
+                entry_widget.insert(0, s.get("keybind_show_ideas", "<Control-s>"))
+
+        # Design zurücksetzen und Focus abziehen -> Sichert das "Let go"-Event
+        entry_widget.config(fg=COLOR_TEXT_MAIN, highlightcolor=COLOR_TEXT_MAIN, highlightbackground="#222222")
+        self.focus_set()
+        return "break"
+
+    # --- END RECORDER CORE ---
 
     def load_current_settings_to_ui(self):
         s = self.controller.settings
@@ -495,7 +558,8 @@ class SettingsPage(AnimatedFrame):
             "keybind_show_ideas": self.entry_kb_show.get().strip()
         }
 
-        if updated_settings["keybind_new_idea"] == "" or updated_settings["keybind_show_ideas"] == "":
+        if updated_settings["keybind_new_idea"] in ("", "[ Listening... ]") or updated_settings[
+            "keybind_show_ideas"] in ("", "[ Listening... ]"):
             messagebox.showwarning("System Configuration", "Keybind fields cannot be left empty.")
             return
 
