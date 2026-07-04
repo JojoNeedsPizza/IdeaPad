@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QTextEdit, QFrame
 )
-from PyQt6.QtCore import Qt, QTimer, QPointF
+from PyQt6.QtCore import Qt, QTimer, QPointF, QPropertyAnimation, QEasingCurve, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -174,7 +174,7 @@ class GlyphButton:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# AddIdeaWindow
+# AddIdeaWindow (Mit Animationen)
 # ═══════════════════════════════════════════════════════════════════════════════
 class AddIdeaWindow(QWidget):
     def __init__(self, dock_x: int, dock_y: int, dock_w: int):
@@ -184,9 +184,12 @@ class AddIdeaWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.win_w, self.win_h = 280, 140
-        px = (dock_x + dock_w) - self.win_w
-        py = dock_y - self.win_h - 8
-        self.setGeometry(px, py, self.win_w, self.win_h)
+        self.target_px = (dock_x + dock_w) - self.win_w
+        self.target_py = dock_y - self.win_h - 8
+
+        # Startet leicht nach unten versetzt und unsichtbar für die Animation
+        self.setGeometry(self.target_px, self.target_py + 12, self.win_w, self.win_h)
+        self.setWindowOpacity(0.0)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
@@ -227,6 +230,42 @@ class AddIdeaWindow(QWidget):
 
         self.name_field.setFocus()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Einblende-Animation (Slide up & Fade in)
+        self.anim_in_opacity = QPropertyAnimation(self, b"windowOpacity")
+        self.anim_in_opacity.setDuration(250)
+        self.anim_in_opacity.setStartValue(0.0)
+        self.anim_in_opacity.setEndValue(1.0)
+        self.anim_in_opacity.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self.anim_in_pos = QPropertyAnimation(self, b"pos")
+        self.anim_in_pos.setDuration(250)
+        self.anim_in_pos.setStartValue(QPoint(self.target_px, self.target_py + 12))
+        self.anim_in_pos.setEndValue(QPoint(self.target_px, self.target_py))
+        self.anim_in_pos.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self.anim_in_opacity.start()
+        self.anim_in_pos.start()
+
+    def fade_out_and_close(self):
+        # Ausblende-Animation (Slide down & Fade out)
+        self.anim_out_opacity = QPropertyAnimation(self, b"windowOpacity")
+        self.anim_out_opacity.setDuration(200)
+        self.anim_out_opacity.setStartValue(self.windowOpacity())
+        self.anim_out_opacity.setEndValue(0.0)
+        self.anim_out_opacity.setEasingCurve(QEasingCurve.Type.InCubic)
+
+        self.anim_out_pos = QPropertyAnimation(self, b"pos")
+        self.anim_out_pos.setDuration(200)
+        self.anim_out_pos.setStartValue(self.pos())
+        self.anim_out_pos.setEndValue(QPoint(self.pos().x(), self.pos().y() + 10))
+        self.anim_out_pos.setEasingCurve(QEasingCurve.Type.InCubic)
+
+        self.anim_out_opacity.finished.connect(self.close)
+        self.anim_out_opacity.start()
+        self.anim_out_pos.start()
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -243,7 +282,7 @@ class AddIdeaWindow(QWidget):
         descriptionofidea = self.desc_field.text().strip()
 
         if nid == "":
-            self.close()
+            self.fade_out_and_close()
             return
 
         databasetemp = {}
@@ -273,11 +312,11 @@ class AddIdeaWindow(QWidget):
         with open(DATABASE_FILE, "w", encoding="utf-8") as file:
             json.dump(databasetemp, file, indent=4)
 
-        self.close()
+        self.fade_out_and_close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ShowIdeasWindow (Angepasst an das Card-Design der Grafik)
+# ShowIdeasWindow (Mit Animationen)
 # ═══════════════════════════════════════════════════════════════════════════════
 class ShowIdeasWindow(QWidget):
     def __init__(self, dock_x: int, dock_y: int, dock_w: int):
@@ -286,11 +325,13 @@ class ShowIdeasWindow(QWidget):
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Fensterhöhe auf 260 leicht erhöht, um mehr Platz für die Cards zu bieten
         self.win_w, self.win_h = 280, 260
-        px = (dock_x + dock_w) - self.win_w
-        py = dock_y - self.win_h - 8
-        self.setGeometry(px, py, self.win_w, self.win_h)
+        self.target_px = (dock_x + dock_w) - self.win_w
+        self.target_py = dock_y - self.win_h - 8
+
+        # Startet leicht nach unten versetzt und unsichtbar für die Animation
+        self.setGeometry(self.target_px, self.target_py + 12, self.win_w, self.win_h)
+        self.setWindowOpacity(0.0)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
@@ -320,7 +361,6 @@ class ShowIdeasWindow(QWidget):
         if ideas:
             html_cards = []
 
-            # Sortiert absteigend nach ID-Nummer (neueste oben)
             def get_key_num(k):
                 if k.startswith("Idea") and k[4:].isdigit():
                     return int(k[4:])
@@ -339,7 +379,6 @@ class ShowIdeasWindow(QWidget):
                     desc = ""
                     date = ""
 
-                # Generiert den Card-Block im exakten Stil deiner Grafik
                 card_html = f"""
                 <div style="background-color: #151515; border: 1px solid #222222; margin-bottom: 8px; padding: 10px;">
                     <table width="100%" cellpadding="0" cellspacing="0">
@@ -357,13 +396,30 @@ class ShowIdeasWindow(QWidget):
                 """
                 html_cards.append(card_html)
 
-            # Fügt alle Cards zusammen in das QTextEdit ein
             self.text.setHtml("".join(html_cards))
         else:
             self.text.setHtml(
                 "<div style='color: #555555; font-style: italic; font-size: 12px;'>No ideas yet.<br>Press the + button to add one.</div>")
 
         layout.addWidget(self.text)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Einblende-Animation (Slide up & Fade in)
+        self.anim_in_opacity = QPropertyAnimation(self, b"windowOpacity")
+        self.anim_in_opacity.setDuration(250)
+        self.anim_in_opacity.setStartValue(0.0)
+        self.anim_in_opacity.setEndValue(1.0)
+        self.anim_in_opacity.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self.anim_in_pos = QPropertyAnimation(self, b"pos")
+        self.anim_in_pos.setDuration(250)
+        self.anim_in_pos.setStartValue(QPoint(self.target_px, self.target_py + 12))
+        self.anim_in_pos.setEndValue(QPoint(self.target_px, self.target_py))
+        self.anim_in_pos.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self.anim_in_opacity.start()
+        self.anim_in_pos.start()
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -441,7 +497,11 @@ class NothingDock(QWidget):
     def _close_popup(self):
         if self.active_popup:
             try:
-                self.active_popup.close()
+                # Prüft, ob es sich um das Add-Fenster handelt, das ein flüssiges Ausblenden unterstützt
+                if hasattr(self.active_popup, 'fade_out_and_close'):
+                    self.active_popup.fade_out_and_close()
+                else:
+                    self.active_popup.close()
             except Exception:
                 pass
             self.active_popup = None
