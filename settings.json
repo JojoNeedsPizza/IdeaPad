@@ -1,0 +1,6 @@
+{
+    "autostart_bar": false,
+    "keybinds_enabled": false,
+    "keybind_new_idea": "<Control-n>",
+    "keybind_show_ideas": "<Control-s>"
+}
