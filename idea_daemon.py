@@ -15,6 +15,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QPointF, QPropertyAnimation, QEasingCurve, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
+# --- GLOBAL DAEMON KEYBINDS EXTENSION ---
+try:
+    from pynput import keyboard as pynput_keyboard
+except ImportError:
+    print("pynput dynamic dependency missing. Run: pip install pynput")
+    pynput_keyboard = None
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DPI AWARENESS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -36,6 +43,7 @@ SWP_ZORDER_ONLY = (
 )
 
 DATABASE_FILE = Path(__file__).parent / "database.json"
+SETTINGS_FILE = Path(__file__).parent / "settings.json"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -100,6 +108,16 @@ def load_ideas() -> dict:
                 if isinstance(databasetemp, dict):
                     return databasetemp
         except (json.JSONDecodeError, Exception):
+            pass
+    return {}
+
+
+def load_settings() -> dict:
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as file:
+                return json.load(file)
+        except Exception:
             pass
     return {}
 
@@ -620,6 +638,11 @@ class NothingDock(QWidget):
         self._hover_x = -1
         self.setMouseTracking(True)
 
+        # Settings einlesen
+        self.settings = load_settings()
+        self._listener = None
+        self._setup_global_keybinds()
+
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update_state)
         self._timer.start(500)
@@ -637,6 +660,13 @@ class NothingDock(QWidget):
     def _update_state(self):
         if self._hwnd is None:
             return
+
+        # Einstellungen periodisch neu laden, falls sie im Hauptprogramm geändert wurden
+        current_settings = load_settings()
+        if current_settings != self.settings:
+            self.settings = current_settings
+            self._setup_global_keybinds()
+
         full = is_real_fullscreen()
         if full and not self._was_fullscreen:
             self._was_fullscreen = True
@@ -648,6 +678,80 @@ class NothingDock(QWidget):
             return
         if not full and self.isVisible():
             win32gui.SetWindowPos(self._hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, SWP_ZORDER_ONLY)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # GLOBAL KEYBIND DEPLOYMENT (THREAD-SAFE WITH QTIMER)
+    # ═══════════════════════════════════════════════════════════════════════════
+    def _setup_global_keybinds(self):
+        if self._listener:
+            self._listener.stop()
+            self._listener = None
+
+        if pynput_keyboard and self.settings.get("keybinds_enabled", False):
+            kb_new = self.settings.get("keybind_new_idea", "<Control-n>")
+            kb_show = self.settings.get("keybind_show_ideas", "<Control-s>")
+
+            pynput_new = self._convert_tk_to_pynput(kb_new)
+            pynput_show = self._convert_tk_to_pynput(kb_show)
+
+            hotkeys = {
+                pynput_new: lambda: QTimer.singleShot(0, self.trigger_add_idea),
+                pynput_show: lambda: QTimer.singleShot(0, self.trigger_show_ideas)
+            }
+
+            try:
+                self._listener = pynput_keyboard.GlobalHotKeys(hotkeys)
+                self._listener.start()
+            except Exception as e:
+                print(f"Keybind Daemon Error: {e}")
+
+    def _convert_tk_to_pynput(self, tk_bind):
+        """
+        Converts a Tkinter-style keybind string (e.g., '<Control-Shift-End>')
+        into a pynput-compatible string format (e.g., '<ctrl>+<shift>+<end>').
+        """
+        cleaned = tk_bind.strip("<>")
+        parts = cleaned.split("-")
+        pynput_parts = []
+
+        for p in parts:
+            p_low = p.lower()
+
+            # Modifiers
+            if p_low in ("control", "ctrl"):
+                pynput_parts.append("<ctrl>")
+            elif p_low == "shift":
+                pynput_parts.append("<shift>")
+            elif p_low in ("alt", "option"):
+                pynput_parts.append("<alt>")
+            elif p_low in ("command", "cmd", "win", "meta"):
+                pynput_parts.append("<cmd>")
+
+            # Special individual keys (pynput specific mapping)
+            elif p_low == "escape":
+                pynput_parts.append("<esc>")
+            elif p_low in ("pageup", "prior"):
+                pynput_parts.append("<page_up>")
+            elif p_low in ("pagedown", "next"):
+                pynput_parts.append("<page_down>")
+
+            # Standard special keys wrapped in brackets
+            elif p_low in (
+                    "space", "enter", "tab", "backspace",
+                    "up", "down", "left", "right",
+                    "end", "home", "insert", "delete"
+            ):
+                pynput_parts.append(f"<{p_low}>")
+
+            # Function keys (F1 - F20)
+            elif len(p_low) > 1 and p_low.startswith("f") and p_low[1:].isdigit():
+                pynput_parts.append(f"<{p_low}>")
+
+            # Regular alphanumeric characters
+            else:
+                pynput_parts.append(p_low)
+
+        return "+".join(pynput_parts)
 
     def _close_popup(self):
         if self.active_popup:
@@ -764,6 +868,10 @@ class NothingDock(QWidget):
         p.drawEllipse(QPointF(self.DOCK_W - 8, 8), 2.5, 2.5)
         p.end()
 
+    def cleanup(self):
+        if self._listener:
+            self._listener.stop()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Entry Point
@@ -772,6 +880,11 @@ if __name__ == "__main__":
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+
     dock = NothingDock()
     dock.show()
+
+    # Sicherstellen, dass der Keybind-Thread beim Schließen des Daemons gestoppt wird
+    app.aboutToQuit.connect(dock.cleanup)
+
     sys.exit(app.exec())
