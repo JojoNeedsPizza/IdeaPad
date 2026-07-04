@@ -1,9 +1,8 @@
 import sys
 import json
-import time
+import datetime
 import ctypes
 import ctypes.wintypes
-from datetime import datetime
 from pathlib import Path
 import win32gui
 import win32con
@@ -35,15 +34,13 @@ SWP_ZORDER_ONLY = (
         win32con.SWP_NOACTIVATE
 )
 
-IDEAS_FILE = Path(__file__).parent / "ideas.json"
+DATABASE_FILE = Path(__file__).parent / "database.json"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Hilfsfunktionen für Fenster & JSON-Struktur
+# Hilfsfunktionen & Standalone JSON-Loader
 # ═══════════════════════════════════════════════════════════════════════════════
 def get_work_area() -> tuple[int, int, int, int]:
-    """Gibt (x, y, w, h) der primären Arbeitsfläche ohne Taskleiste zurück."""
-
     class MONITORINFO(ctypes.Structure):
         _fields_ = [("cbSize", ctypes.c_ulong),
                     ("rcMonitor", ctypes.wintypes.RECT),
@@ -94,20 +91,16 @@ def is_real_fullscreen() -> bool:
             abs(fx - mr.left) <= 2 and abs(fy - mr.top) <= 2)
 
 
-def load_ideas() -> list[dict]:
-    """Lädt die bestehende Struktur (Liste von Dictionaries)."""
-    if IDEAS_FILE.exists():
+def load_ideas() -> dict:
+    if DATABASE_FILE.exists():
         try:
-            data = json.loads(IDEAS_FILE.read_text(encoding="utf-8"))
-            if isinstance(data, list):
-                return data
-        except Exception:
+            with open(DATABASE_FILE, "r", encoding="utf-8") as file:
+                databasetemp = json.load(file)
+                if isinstance(databasetemp, dict):
+                    return databasetemp
+        except (json.JSONDecodeError, Exception):
             pass
-    return []
-
-
-def save_ideas(ideas: list[dict]):
-    IDEAS_FILE.write_text(json.dumps(ideas, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -181,7 +174,7 @@ class GlyphButton:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# AddIdeaWindow (An Haupt-Dock Design angepasst)
+# AddIdeaWindow
 # ═══════════════════════════════════════════════════════════════════════════════
 class AddIdeaWindow(QWidget):
     def __init__(self, dock_x: int, dock_y: int, dock_w: int):
@@ -190,24 +183,24 @@ class AddIdeaWindow(QWidget):
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.win_w, self.win_h = 280, 90
-        # Exakt rechtsbündig über dem Haupt-Dock ausrichten
-        px = dock_x + dock_w - self.win_w
-        py = dock_y - self.win_h - 6
+        self.win_w, self.win_h = 280, 140
+        px = (dock_x + dock_w) - self.win_w
+        py = dock_y - self.win_h - 8
         self.setGeometry(px, py, self.win_w, self.win_h)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(6)
+        layout.setSpacing(10)
 
+        header_row = QHBoxLayout()
         lbl = QLabel("NEW IDEA")
         lbl.setStyleSheet(
             "color: #666666; font-family: 'Segoe UI'; font-size: 9px; font-weight: bold; letter-spacing: 2px;")
-        layout.addWidget(lbl)
+        header_row.addWidget(lbl)
+        header_row.addStretch()
+        layout.addLayout(header_row)
 
-        self.field = QLineEdit()
-        self.field.setPlaceholderText("Type your idea...")
-        self.field.setStyleSheet("""
+        input_style = """
             QLineEdit {
                 background: transparent;
                 color: #EEEEEE;
@@ -217,42 +210,74 @@ class AddIdeaWindow(QWidget):
                 font-family: 'Segoe UI';
                 font-size: 13px;
             }
-            QLineEdit:focus { border-bottom: 1px solid #666666; }
-        """)
-        self.field.returnPressed.connect(self._save_and_close)
-        layout.addWidget(self.field)
-        self.field.setFocus()
+            QLineEdit:focus { border-bottom: 1px solid #888888; }
+        """
+
+        self.name_field = QLineEdit()
+        self.name_field.setPlaceholderText("Enter your Idea's Name...")
+        self.name_field.setStyleSheet(input_style)
+        self.name_field.returnPressed.connect(self._save_and_close)
+        layout.addWidget(self.name_field)
+
+        self.desc_field = QLineEdit()
+        self.desc_field.setPlaceholderText("Describe this Idea...")
+        self.desc_field.setStyleSheet(input_style)
+        self.desc_field.returnPressed.connect(self._save_and_close)
+        layout.addWidget(self.desc_field)
+
+        self.name_field.setFocus()
 
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QBrush(QColor(10, 10, 10, 210)))  # Identisch zum Dock
-        p.setPen(QPen(QColor(55, 55, 55, 160), 1))  # Identisch zum Dock
-        p.drawRoundedRect(0, 0, self.win_w - 1, self.win_h - 1, 9, 9)  # Gleicher Radius (9px)
+        p.setBrush(QBrush(QColor(12, 12, 12, 248)))
+        p.setPen(QPen(QColor(45, 45, 45), 1))
+        p.drawRoundedRect(0, 0, self.win_w - 1, self.win_h - 1, 12, 12)
 
-        # Integrierter Hardware-Punkt oben rechts
         p.setBrush(QBrush(QColor(229, 43, 31)))
         p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(QPointF(self.win_w - 8, 8), 2.5, 2.5)
+        p.drawEllipse(QPointF(self.win_w - 14, 14), 3, 3)
 
     def _save_and_close(self):
-        text = self.field.text().strip()
-        if text:
-            ideas = load_ideas()
-            # Struktur-Mapping auf deine bestehende JSON-Architektur
-            new_entry = {
-                "key": str(int(time.time())),
-                "name": text,
-                "description": "",
-                "date": datetime.now().strftime("%Y-%m-%d %H:%M")
-            }
-            ideas.insert(0, new_entry)
-            save_ideas(ideas)
+        nid = self.name_field.text().strip()
+        descriptionofidea = self.desc_field.text().strip()
+
+        if nid == "":
+            self.close()
+            return
+
+        databasetemp = {}
+        if DATABASE_FILE.exists():
+            with open(DATABASE_FILE, "r", encoding="utf-8") as file:
+                try:
+                    databasetemp = json.load(file)
+                except json.JSONDecodeError:
+                    databasetemp = {}
+
+                if isinstance(databasetemp, list):
+                    databasetemp = {}
+
+        countofideas = len(databasetemp)
+        coid = countofideas + 1
+
+        currentdateandtime = datetime.datetime.now()
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        date_str = f"{currentdateandtime.day} {months[currentdateandtime.month - 1]} {currentdateandtime.year} // {currentdateandtime.strftime('%H:%M')}"
+
+        databasetemp[f"Idea{coid}"] = {
+            "Name of Idea": f'{nid}',
+            "Description": f'{descriptionofidea}',
+            "Date and Time": date_str
+        }
+
+        with open(DATABASE_FILE, "w", encoding="utf-8") as file:
+            json.dump(databasetemp, file, indent=4)
+
         self.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ShowIdeasWindow (An Haupt-Dock Design angepasst)
+# ShowIdeasWindow (Angepasst an das Card-Design der Grafik)
 # ═══════════════════════════════════════════════════════════════════════════════
 class ShowIdeasWindow(QWidget):
     def __init__(self, dock_x: int, dock_y: int, dock_w: int):
@@ -261,9 +286,10 @@ class ShowIdeasWindow(QWidget):
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.win_w, self.win_h = 280, 220
-        px = dock_x + dock_w - self.win_w
-        py = dock_y - self.win_h - 6
+        # Fensterhöhe auf 260 leicht erhöht, um mehr Platz für die Cards zu bieten
+        self.win_w, self.win_h = 280, 260
+        px = (dock_x + dock_w) - self.win_w
+        py = dock_y - self.win_h - 8
         self.setGeometry(px, py, self.win_w, self.win_h)
 
         layout = QVBoxLayout(self)
@@ -285,42 +311,70 @@ class ShowIdeasWindow(QWidget):
                 border: none;
                 font-family: 'Segoe UI';
             }
-            QScrollBar:vertical { background: transparent; width: 4px; margin: 0; }
+            QScrollBar:vertical { background: #111111; width: 4px; margin: 0; }
             QScrollBar::handle:vertical { background: #333333; border-radius: 2px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
         """)
 
         ideas = load_ideas()
         if ideas:
-            # HTML-Formatierung für saubere Darstellung von Name & Datum im Nothing-Stil
-            html_content = ""
-            for item in ideas:
-                name = item.get("name", "Untitled")
-                date = item.get("date", "")
-                html_content += (
-                    f"<div style='margin-bottom: 8px;'>"
-                    f"<span style='color: #EEEEEE; font-size: 12px;'>• {name}</span><br/>"
-                    f"<span style='color: #555555; font-size: 10px; font-family: \"Courier New\"; margin-left: 10px;'>{date}</span>"
-                    f"</div>"
-                )
-            self.text.setHtml(html_content)
+            html_cards = []
+
+            # Sortiert absteigend nach ID-Nummer (neueste oben)
+            def get_key_num(k):
+                if k.startswith("Idea") and k[4:].isdigit():
+                    return int(k[4:])
+                return 0
+
+            sorted_keys = sorted(ideas.keys(), key=get_key_num, reverse=True)
+
+            for key in sorted_keys:
+                item = ideas[key]
+                if isinstance(item, dict):
+                    name = item.get("Name of Idea", "Untitled")
+                    desc = item.get("Description", "")
+                    date = item.get("Date and Time", "")
+                else:
+                    name = str(item)
+                    desc = ""
+                    date = ""
+
+                # Generiert den Card-Block im exakten Stil deiner Grafik
+                card_html = f"""
+                <div style="background-color: #151515; border: 1px solid #222222; margin-bottom: 8px; padding: 10px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td style="color: #555555; font-size: 10px; font-family: 'Courier New', monospace;">{date}</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #FFFFFF; font-size: 13px; font-weight: bold; font-family: 'Segoe UI', Arial; padding-top: 6px; padding-bottom: 4px;">{name}</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #888888; font-size: 11px; font-family: 'Segoe UI', Arial;">{desc if desc else '&nbsp;'}</td>
+                        </tr>
+                    </table>
+                </div>
+                """
+                html_cards.append(card_html)
+
+            # Fügt alle Cards zusammen in das QTextEdit ein
+            self.text.setHtml("".join(html_cards))
         else:
             self.text.setHtml(
-                "<span style='color: #444444; font-style: italic; font-size: 12px;'>No ideas yet.<br>Press the + button to add one.</span>")
+                "<div style='color: #555555; font-style: italic; font-size: 12px;'>No ideas yet.<br>Press the + button to add one.</div>")
 
         layout.addWidget(self.text)
 
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setBrush(QBrush(QColor(10, 10, 10, 210)))  # Identisch zum Dock
-        p.setPen(QPen(QColor(55, 55, 55, 160), 1))  # Identisch zum Dock
-        p.drawRoundedRect(0, 0, self.win_w - 1, self.win_h - 1, 9, 9)  # Gleicher Radius (9px)
+        p.setBrush(QBrush(QColor(12, 12, 12, 248)))
+        p.setPen(QPen(QColor(45, 45, 45), 1))
+        p.drawRoundedRect(0, 0, self.win_w - 1, self.win_h - 1, 12, 12)
 
-        # Integrierter Hardware-Punkt
         p.setBrush(QBrush(QColor(229, 43, 31)))
         p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(QPointF(self.win_w - 8, 8), 2.5, 2.5)
+        p.drawEllipse(QPointF(self.win_w - 14, 14), 3, 3)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -365,7 +419,6 @@ class NothingDock(QWidget):
 
     def _apply_win32_styles(self):
         self._hwnd = int(self.winId())
-        # Sichere pywin32 API-Aufrufe zur Vermeidung von x64-Speicherabshchnitten
         ex = win32gui.GetWindowLong(self._hwnd, win32con.GWL_EXSTYLE)
         win32gui.SetWindowLong(self._hwnd, win32con.GWL_EXSTYLE, ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
         win32gui.SetWindowPos(self._hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, SWP_ZORDER_ONLY)
