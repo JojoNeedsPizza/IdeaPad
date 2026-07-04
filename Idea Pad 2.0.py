@@ -147,19 +147,8 @@ class IdeaPadApp:
         frame.animate_fade_in()
 
     def apply_global_keybinds(self):
-        # Alle potenziellen alten Binds sauber lösen
-        self.root.unbind_all("<Control-n>")
-        self.root.unbind_all("<Control-s>")
-
-        if self.settings.get("keybinds_enabled", False):
-            kb_new = self.settings.get("keybind_new_idea", "<Control-n>")
-            kb_show = self.settings.get("keybind_show_ideas", "<Control-s>")
-
-            try:
-                self.root.bind_all(kb_new, lambda e: self.show_frame("AddIdeaPage"))
-                self.root.bind_all(kb_show, lambda e: self.show_frame("ShowIdeasPage"))
-            except Exception as e:
-                print(f"Keybind binding failed: {e}")
+        """Deaktiviert: Keybinds funktionieren in dieser Anwendung nicht mehr."""
+        pass
 
 
 # --- MIXIN FOR ANIMATIONS ---
