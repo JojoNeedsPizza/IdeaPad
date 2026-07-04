@@ -3,6 +3,7 @@ import json
 import datetime
 import ctypes
 import ctypes.wintypes
+import subprocess
 from pathlib import Path
 import win32gui
 import win32con
@@ -155,6 +156,14 @@ def draw_eye(p: QPainter, cx: float, cy: float, s: float, color: QColor):
     p.setBrush(Qt.BrushStyle.NoBrush)
 
 
+def draw_launch(p: QPainter, cx: float, cy: float, s: float, color: QColor):
+    _nothing_pen(p, color, 1.4 * s)
+    r = 3.0 * s
+    p.drawLine(QPointF(cx - r, cy + r), QPointF(cx + r, cy - r))
+    p.drawLine(QPointF(cx - 0.5 * r, cy - r), QPointF(cx + r, cy - r))
+    p.drawLine(QPointF(cx + r, cy - r), QPointF(cx + r, cy + 0.5 * r))
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Dock-Button Logik
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -187,7 +196,6 @@ class AddIdeaWindow(QWidget):
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Breite auf 320 angepasst für einheitlichen Look
         self.win_w, self.win_h = 320, 155
         self.target_px = (dock_x + dock_w) - self.win_w
         self.target_py = dock_y - self.win_h - 8
@@ -236,7 +244,6 @@ class AddIdeaWindow(QWidget):
 
         layout.addStretch()
 
-        # Action-Buttons (BACK & SAVE)
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(12)
         actions_layout.addStretch()
@@ -453,7 +460,7 @@ class IdeaCard(QFrame):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ShowIdeasWindow (Breite auf 320px erhöht gegen horizontalen Cutoff)
+# ShowIdeasWindow
 # ═══════════════════════════════════════════════════════════════════════════════
 class ShowIdeasWindow(QWidget):
     def __init__(self, dock_x: int, dock_y: int, dock_w: int, dock_parent):
@@ -464,7 +471,6 @@ class ShowIdeasWindow(QWidget):
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Breite von 280 auf 320 erhöht, um dem Text rechts Luft zu geben
         self.win_w, self.win_h = 320, 360
         self.target_px = (dock_x + dock_w) - self.win_w
         self.target_py = dock_y - self.win_h - 8
@@ -582,10 +588,10 @@ class ShowIdeasWindow(QWidget):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# NothingDock — Haupt-Overlay
+# NothingDock — Haupt-Overlay (3 Buttons, Breite erhöht auf 240px)
 # ═══════════════════════════════════════════════════════════════════════════════
 class NothingDock(QWidget):
-    DOCK_W = 170
+    DOCK_W = 240  # Breite vergrößert für 3 Buttons
     DOCK_H = 38
     MARGIN = 8
     SCALE = 1.1
@@ -601,10 +607,11 @@ class NothingDock(QWidget):
         self.dock_y = wy + wh - self.DOCK_H - 4
         self.setGeometry(self.dock_x, self.dock_y, self.DOCK_W, self.DOCK_H)
 
-        sw = self.DOCK_W // 2
+        sw = self.DOCK_W // 3
         self._buttons = [
             GlyphButton(0, sw, self._draw_add_idea, "Add Idea"),
             GlyphButton(sw, sw, self._draw_show_ideas, "Show Ideas"),
+            GlyphButton(sw * 2, sw, self._draw_open_main, "Open Main Program"),
         ]
 
         self._hwnd = None
@@ -678,6 +685,14 @@ class NothingDock(QWidget):
         self.active_popup.raise_()
         self.active_popup.activateWindow()
 
+    def trigger_open_main(self):
+        self._close_popup()
+        main_script = Path(__file__).parent / "Idea Pad 2.0.py"
+        if main_script.exists():
+            subprocess.Popen([sys.executable, str(main_script)])
+        else:
+            print(f"Error: {main_script.name} not found in path.")
+
     def mouseMoveEvent(self, event):
         self._hover_x = int(event.position().x())
         for btn in self._buttons:
@@ -697,6 +712,8 @@ class NothingDock(QWidget):
                 self.trigger_add_idea()
             elif self._buttons[1].contains(px):
                 self.trigger_show_ideas()
+            elif self._buttons[2].contains(px):
+                self.trigger_open_main()
 
     def _draw_add_idea(self, p: QPainter, cx: float, cy: float, color: QColor):
         s = self.SCALE
@@ -707,6 +724,11 @@ class NothingDock(QWidget):
         s = self.SCALE
         draw_notepad(p, cx - 5 * s, cy, s, color)
         draw_eye(p, cx + 7 * s, cy + 5 * s, s, color)
+
+    def _draw_open_main(self, p: QPainter, cx: float, cy: float, color: QColor):
+        s = self.SCALE
+        draw_notepad(p, cx - 5 * s, cy, s, color)
+        draw_launch(p, cx + 7 * s, cy + 4 * s, s, color)
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -720,18 +742,17 @@ class NothingDock(QWidget):
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRoundedRect(0, 0, self.DOCK_W - 1, self.DOCK_H - 1, 9, 9)
 
-        mid = self.DOCK_W // 2
+        # Zwei Trennlinien zeichnen für 3 Buttons
+        sw = self.DOCK_W // 3
         p.setPen(QPen(QColor(50, 50, 50, 140), 1))
-        p.drawLine(mid, 7, mid, self.DOCK_H - 7)
+        p.drawLine(sw, 7, sw, self.DOCK_H - 7)
+        p.drawLine(sw * 2, 7, sw * 2, self.DOCK_H - 7)
 
         for btn in self._buttons:
             if btn.hovered:
                 p.setBrush(QBrush(QColor(255, 255, 255, 12)))
                 p.setPen(Qt.PenStyle.NoPen)
-                if btn is self._buttons[0]:
-                    p.drawRoundedRect(1, 1, mid - 1, self.DOCK_H - 2, 9, 9)
-                else:
-                    p.drawRoundedRect(mid, 1, mid - 1, self.DOCK_H - 2, 9, 9)
+                p.drawRoundedRect(btn.x, 1, btn.w, self.DOCK_H - 2, 9, 9)
 
         cy = self.DOCK_H / 2
         for btn in self._buttons:
