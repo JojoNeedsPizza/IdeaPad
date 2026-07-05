@@ -433,7 +433,8 @@ class SettingsPage(AnimatedFrame):
         # --- Setting Row: Autostart Switch for IdeaBar.exe ---
         row_autostart = tk.Frame(self, bg=COLOR_BG)
         row_autostart.pack(fill="x", pady=8)
-        tk.Label(row_autostart, text="START IDEABAR.EXE ON PC BOOT", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
+        tk.Label(row_autostart, text="START IDEABAR.EXE ON PC BOOT", font=FONT_BODY, fg=COLOR_TEXT_MAIN,
+                 bg=COLOR_BG).pack(
             side="left")
         self.toggle_autostart = TextToggleSwitch(row_autostart)
         self.toggle_autostart.pack(side="right")
@@ -441,17 +442,34 @@ class SettingsPage(AnimatedFrame):
         # --- Setting Row: Background Process Control (IdeaBar) ---
         row_bar = tk.Frame(self, bg=COLOR_BG)
         row_bar.pack(fill="x", pady=8)
-        tk.Label(row_bar, text="EXTERNAL DAEMONS // SIDEBAR", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
-            side="left")
 
+        # Text-Label links oben verankern, damit es sich bei zwei Zeilen rechts nicht verschiebt
+        tk.Label(row_bar, text="EXTERNAL DAEMONS // SIDEBAR", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
+            side="left", anchor="n", pady=4)
+
+        # Rechter Container für das vertikale Stapeln der Steuerelemente
+        btn_control_frame = tk.Frame(row_bar, bg=COLOR_BG)
+        btn_control_frame.pack(side="right", anchor="n")
+
+        # [ Close Button ] (Obere Position)
         self.btn_close_bar = tk.Button(
-            row_bar, text="[ Close IdeaBar.exe ]", font=FONT_LABEL, bd=0, highlightthickness=0,
-            padx=10, pady=5, cursor="hand2", bg=COLOR_BG, fg=COLOR_DOT,
+            btn_control_frame, text="[ Close IdeaBar.exe ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_DOT,
             activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.close_ideabar
         )
-        self.btn_close_bar.pack(side="right")
+        self.btn_close_bar.pack(side="top", anchor="e")
         self.btn_close_bar.bind("<Enter>", lambda e: self.btn_close_bar.config(fg=COLOR_TEXT_MAIN))
         self.btn_close_bar.bind("<Leave>", lambda e: self.btn_close_bar.config(fg=COLOR_DOT))
+
+        # [ Launch Button ] (Direkt unter dem Close Button platziert)
+        self.btn_launch_bar = tk.Button(
+            btn_control_frame, text="[ Launch IdeaBar.exe ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_TEXT_MUTED,
+            activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.launch_ideabar
+        )
+        self.btn_launch_bar.pack(side="top", anchor="e", pady=(2, 0))
+        self.btn_launch_bar.bind("<Enter>", lambda e: self.btn_launch_bar.config(fg=COLOR_TEXT_MAIN))
+        self.btn_launch_bar.bind("<Leave>", lambda e: self.btn_launch_bar.config(fg=COLOR_TEXT_MUTED))
 
         # Footer Actions
         footer = tk.Frame(self, bg=COLOR_BG)
@@ -461,6 +479,23 @@ class SettingsPage(AnimatedFrame):
                   activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
                   command=lambda: controller.show_frame("MainMenu")).pack(side="left")
         EssentialButton(footer, text="Apply Changes", command=self.save_current_settings).pack(side="right")
+
+    # --- LAUNCH EXTERNAL DAEMON ---
+    def launch_ideabar(self):
+        exe_path = os.path.abspath("IdeaBar.exe")
+        script_path = os.path.abspath("IdeaBar.py")
+
+        try:
+            if os.path.exists(exe_path):
+                subprocess.Popen([exe_path], cwd=os.path.dirname(exe_path))
+                messagebox.showinfo("System", "IdeaBar.exe launched successfully.")
+            elif os.path.exists(script_path):
+                subprocess.Popen([sys.executable, script_path], cwd=os.path.dirname(script_path))
+                messagebox.showinfo("System", "IdeaBar.py process initiated.")
+            else:
+                messagebox.showerror("Error", "IdeaBar target file not found in directory.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to execute process: {e}")
 
     # --- TERMINATE EXTERNAL DAEMON ---
     def close_ideabar(self):
@@ -478,14 +513,13 @@ class SettingsPage(AnimatedFrame):
             try:
                 key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
                 if enabled:
-                    # Pfad zur IdeaBar.exe im aktuellen Ausführungspfad bestimmen
                     exe_path = os.path.abspath("IdeaBar.exe")
                     winreg.SetValueEx(key, "IdeaBar", 0, winreg.REG_SZ, f'"{exe_path}"')
                 else:
                     try:
                         winreg.DeleteValue(key, "IdeaBar")
                     except FileNotFoundError:
-                        pass  # War bereits gelöscht oder existierte nicht
+                        pass
                 winreg.CloseKey(key)
             except Exception as e:
                 messagebox.showerror("System Error", f"Failed to update Windows Registry: {e}")
@@ -569,7 +603,6 @@ class SettingsPage(AnimatedFrame):
             messagebox.showwarning("System Configuration", "Keybind fields cannot be left empty.")
             return
 
-        # Registry-Eintrag basierend auf Switch-Status aktualisieren
         self.update_windows_autostart(updated_settings["ideabar_autostart"])
 
         save_settings(updated_settings)

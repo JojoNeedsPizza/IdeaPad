@@ -618,14 +618,13 @@ class NothingDock(QWidget):
         self._hover_x = -1
         self.setMouseTracking(True)
 
-        # Hotkey Status & Konfigurations-Variablen
+        # Hotkey Configuration Tracker Variables
+        self._last_settings_mtime = 0
+        self.keybinds_enabled = False
         self.vk_add_idea = []
         self.vk_show_ideas = []
         self.hotkey_add_active = False
         self.hotkey_show_active = False
-        self._last_settings_mtime = 0
-        self._hotkey_tick_count = 0
-
         self.load_hotkeys_from_settings()
 
         self._timer = QTimer(self)
@@ -637,52 +636,31 @@ class NothingDock(QWidget):
         self._hotkey_timer.start(50)
 
     def load_hotkeys_from_settings(self):
-        """Liest settings.json aus und lädt Hotkeys neu, falls die Datei geändert wurde."""
-        if not SETTINGS_FILE.exists():
-            # Standard-Fallbacks falls noch keine Einstellungsdatei existiert
-            self.vk_add_idea = self._parse_hotkey_string("<Control-n>")
-            self.vk_show_ideas = self._parse_hotkey_string("<Control-s>")
-            return
+        add_str = "<Control-n>"
+        show_str = "<Control-s>"
+        self.keybinds_enabled = False
 
-        try:
-            current_mtime = os.path.getmtime(SETTINGS_FILE)
-            if current_mtime == self._last_settings_mtime:
-                return  # Keine Änderungen an der Datei vorhanden
+        if SETTINGS_FILE.exists():
+            try:
+                mtime = os.path.getmtime(SETTINGS_FILE)
+                if self._last_settings_mtime == mtime:
+                    return
+                self._last_settings_mtime = mtime
 
-            self._last_settings_mtime = current_mtime
+                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    self.keybinds_enabled = config.get("keybinds_enabled", False)
+                    add_str = config.get("keybind_new_idea", add_str)
+                    show_str = config.get("keybind_show_ideas", show_str)
+            except Exception:
+                pass
+        else:
+            self._last_settings_mtime = 0
 
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                config = json.load(f)
-
-            # Prüfen, ob der Master-Switch für Keybinds im Hauptprogramm aktiv ist
-            keybinds_enabled = config.get("keybinds_enabled", False)
-            if not keybinds_enabled:
-                self.vk_add_idea = []
-                self.vk_show_ideas = []
-                return
-
-            add_str = config.get("keybind_new_idea", "<Control-n>")
-            show_str = config.get("keybind_show_ideas", "<Control-s>")
-
-            self.vk_add_idea = self._parse_hotkey_string(add_str)
-            self.vk_show_ideas = self._parse_hotkey_string(show_str)
-        except Exception:
-            pass
+        self.vk_add_idea = self._parse_hotkey_string(add_str)
+        self.vk_show_ideas = self._parse_hotkey_string(show_str)
 
     def _parse_hotkey_string(self, hotkey_str: str) -> list[int]:
-        """Übersetzt Tkinter-Keybind Strings wie '<Control-Shift-n>' in Windows Virtual Key Codes."""
-        if not hotkey_str:
-            return []
-
-        s = hotkey_str.strip().lower()
-        if s.startswith("<") and s.endswith(">"):
-            s = s[1:-1]
-
-        # Normalisiere Trennzeichen (sowohl Bindestriche als auch Pluszeichen erlauben)
-        s = s.replace("+", "-")
-        parts = [p.strip() for p in s.split("-") if p.strip()]
-
-        # Windows API Virtual Key Code Zuordnungen
         vk_map = {
             "alt": 0x12, "shift": 0x10, "ctrl": 0x11, "control": 0x11,
             "win": 0x5B, "windows": 0x5B, "tab": 0x09, "enter": 0x0D, "space": 0x20,
@@ -690,28 +668,26 @@ class NothingDock(QWidget):
             "next": 0x22, "pagedown": 0x22, "page down": 0x22
         }
 
+        cleaned = hotkey_str.strip()
+        if cleaned.startswith("<") and cleaned.endswith(">"):
+            cleaned = cleaned[1:-1]
+
+        cleaned = cleaned.replace("+", "-")
+        parts = [p.strip().lower() for p in cleaned.split("-") if p.strip()]
+
         vks = []
         for part in parts:
             if part in vk_map:
                 vks.append(vk_map[part])
             elif len(part) == 1:
                 vks.append(ord(part.upper()))
-            elif part.startswith("f") and part[1:].isdigit():
-                f_num = int(part[1:])
-                if 1 <= f_num <= 12:
-                    vks.append(0x6F + f_num)  # VK_F1 startet bei 0x70
         return vks
 
     def check_global_hotkeys(self):
-        """Überprüft asynchron den Status der Tastenkombinationen."""
-        # Checke die Einstellungsdatei alle 20 Ticks (~1 Sekunde) auf Änderungen
-        self._hotkey_tick_count += 1
-        if self._hotkey_tick_count >= 20:
-            self._hotkey_tick_count = 0
-            self.load_hotkeys_from_settings()
+        if not self.keybinds_enabled:
+            return
 
         try:
-            # Add Idea Hotkey abfragen
             if self.vk_add_idea and all(ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000 for vk in self.vk_add_idea):
                 if not self.hotkey_add_active:
                     self.hotkey_add_active = True
@@ -719,7 +695,6 @@ class NothingDock(QWidget):
             else:
                 self.hotkey_add_active = False
 
-            # Show Ideas Hotkey abfragen
             if self.vk_show_ideas and all(
                     ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000 for vk in self.vk_show_ideas):
                 if not self.hotkey_show_active:
@@ -743,6 +718,9 @@ class NothingDock(QWidget):
     def _update_state(self):
         if self._hwnd is None:
             return
+
+        self.load_hotkeys_from_settings()
+
         full = is_real_fullscreen()
         if full and not self._was_fullscreen:
             self._was_fullscreen = True
@@ -794,7 +772,7 @@ class NothingDock(QWidget):
     def trigger_open_main(self):
         self._close_popup()
         main_exe = BASE_DIR / "IdeaPad.exe"
-        main_script = BASE_DIR / "idea_pad.py"
+        main_script = BASE_DIR / "Idea Pad 2.0.py"
 
         if main_exe.exists():
             subprocess.Popen([str(main_exe)], cwd=str(BASE_DIR))
@@ -854,6 +832,20 @@ class NothingDock(QWidget):
 
 
 if __name__ == "__main__":
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SINGLE INSTANCE CHECK (WINDOWS MUTEX)
+    # ═══════════════════════════════════════════════════════════════════════════
+    MUTEX_NAME = "Global\\NothingDock_IdeaBar_SingleInstance_Mutex"
+    ERROR_ALREADY_EXISTS = 183
+
+    # Erstellt einen systemweiten, benannten Mutex
+    hwnd_mutex = ctypes.windll.kernel32.CreateMutexW(None, ctypes.c_bool(False), MUTEX_NAME)
+    last_error = ctypes.windll.kernel32.GetLastError()
+
+    if last_error == ERROR_ALREADY_EXISTS:
+        # Falls der Mutex bereits existiert, beenden wir diese Instanz direkt
+        sys.exit(0)
+
     app = QApplication(sys.argv)
     dock = NothingDock()
     dock.show()
