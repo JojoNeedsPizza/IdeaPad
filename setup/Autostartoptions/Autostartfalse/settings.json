@@ -1,0 +1,6 @@
+{
+    "autostart_bar": false,
+    "keybinds_enabled": true,
+    "keybind_new_idea": "<Prior>",
+    "keybind_show_ideas": "<Next>"
+}
