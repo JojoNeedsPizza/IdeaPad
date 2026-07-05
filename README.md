@@ -19,7 +19,8 @@
 Have you ever got an very good Idea, said to yorself "I'll do this later", 
 but when it is later you forgot half of it. Atleast i had this problem and
 so i created IdeaPad, my first ever "serious" public Python Project. So lets dive
-in and i guarantee you, you'll never forget an good Idea ever again.
+in and i guarantee you, you'll never forget an good Idea ever again. I'm still learning
+python, so AI helped me a lot.
 <br>
 <hr>
 <h2>Getting Started (Python Version)</h2>
