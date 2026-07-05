@@ -22,7 +22,13 @@ so i created IdeaPad, my first ever "serious" public Python Project. So lets div
 in and i guarantee you, you'll never forget an good Idea ever again. I'm still learning
 python, so AI helped me a lot.
 <br>
-<hr>
+<hr><h2>Supported Versions</h2>
+Windows: - Trough optimized Python
+<br>
+Mac OS: - Only trough unoptimized Python
+<br>
+Linux: - Only trough unoptimized Python
+<br>
 <h2>Getting Started (Python Version)</h2>
   First you should Check, if you have all the required Python libraries installed.<br><br>
   **You need:**
