@@ -113,7 +113,7 @@ class TextToggleSwitch(tk.Button):
 class IdeaPadApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("IdeaPad // OS")
+        self.root.title("IdeaPad 2.0")
         self.root.geometry("600x650")
         self.root.minsize(450, 500)
         self.root.configure(bg=COLOR_BG)
@@ -172,17 +172,17 @@ class MainMenu(AnimatedFrame):
             side="left")
         tk.Label(header_frame, text="●", font=("Arial", 10), fg=COLOR_DOT, bg=COLOR_BG).pack(side="left", padx=5,
                                                                                              pady=(15, 0))
-        tk.Label(header_frame, text="// SYSTEM CORE", font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(
+        tk.Label(header_frame, text="// GOOD IDEAS UNFORGOTTEN", font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(
             side="left", padx=5, pady=(12, 0))
 
-        EssentialButton(self, text="⚡ Capture New Idea", command=lambda: controller.show_frame("AddIdeaPage")).pack(
+        EssentialButton(self, text="⚡ Add Idea", command=lambda: controller.show_frame("AddIdeaPage")).pack(
             fill="x", pady=6)
-        EssentialButton(self, text="📂 Open Idea Archive", command=lambda: controller.show_frame("ShowIdeasPage")).pack(
+        EssentialButton(self, text="📂 Show Ideas", command=lambda: controller.show_frame("ShowIdeasPage")).pack(
             fill="x", pady=6)
-        EssentialButton(self, text="⚙ System Settings", command=lambda: controller.show_frame("SettingsPage")).pack(
+        EssentialButton(self, text="⚙ Settings", command=lambda: controller.show_frame("SettingsPage")).pack(
             fill="x", pady=6)
 
-        exit_lbl = tk.Label(self, text="[ Power Off ]", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
+        exit_lbl = tk.Label(self, text="[ Quit ]", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
                             cursor="hand2")
         exit_lbl.pack(side="bottom", pady=20)
         exit_lbl.bind("<Button-1>", lambda e: parent.quit())
@@ -199,14 +199,14 @@ class AddIdeaPage(AnimatedFrame):
         tk.Label(self, text="New Idea.", font=FONT_DOTMATRIX, fg=COLOR_TEXT_MAIN, bg=COLOR_BG, anchor="w").pack(
             fill="x", pady=(10, 30))
 
-        tk.Label(self, text="CONCEPT IDENTIFIER", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, anchor="w").pack(
+        tk.Label(self, text="Whats your Idea called?", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, anchor="w").pack(
             fill="x")
         self.entry_name = tk.Entry(self, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                    insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                    highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
         self.entry_name.pack(fill="x", pady=(5, 25), ipady=10)
 
-        tk.Label(self, text="THOUGHT DATA // NOTES", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
+        tk.Label(self, text="Notes of your Idea", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
                  anchor="w").pack(fill="x")
         self.text_desc = tk.Text(self, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_CARD,
                                  insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=0, height=8)
@@ -218,7 +218,7 @@ class AddIdeaPage(AnimatedFrame):
         tk.Button(footer, text="✕ Cancel", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, bd=0,
                   activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
                   command=lambda: controller.show_frame("MainMenu")).pack(side="left")
-        EssentialButton(footer, text="Save to Archive", command=self.save_idea).pack(side="right")
+        EssentialButton(footer, text="Save it!", command=self.save_idea).pack(side="right")
 
         self.text_desc.bind("<Shift-Return>", lambda event: self.save_idea())
 
@@ -227,7 +227,7 @@ class AddIdeaPage(AnimatedFrame):
         desc = self.text_desc.get("1.0", "end-1c")
 
         if name.strip() == "":
-            messagebox.showwarning("System", "Identification title required.")
+            messagebox.showwarning("System", "Name required.")
             return
 
         db = load_database()
@@ -259,7 +259,7 @@ class ShowIdeasPage(AnimatedFrame):
         tk.Button(header, text="← Menu", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG, bd=0,
                   activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MUTED,
                   command=lambda: controller.show_frame("MainMenu")).pack(side="left")
-        tk.Label(header, text="Idea Archive", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(side="right",
+        tk.Label(header, text="All your Ideas", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(side="right",
                                                                                                       pady=5)
 
         self.canvas = tk.Canvas(self, bg=COLOR_BG, highlightthickness=0)
@@ -290,7 +290,7 @@ class ShowIdeasPage(AnimatedFrame):
 
         db = load_database()
         if not db:
-            tk.Label(self.scrollable_frame, text="ARCHIVE_EMPTY // NO_DATA", font=FONT_BODY, fg=COLOR_DOT,
+            tk.Label(self.scrollable_frame, text="Pretty empty rn. Ideas incoming...", font=FONT_BODY, fg=COLOR_DOT,
                      bg=COLOR_BG).pack(pady=80)
             return
 
@@ -395,7 +395,7 @@ class SettingsPage(AnimatedFrame):
         # --- Setting Row: Keybind Master Switch ---
         row_keys = tk.Frame(self, bg=COLOR_BG)
         row_keys.pack(fill="x", pady=12)
-        tk.Label(row_keys, text="LOCAL APPLICATION KEYBINDS", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
+        tk.Label(row_keys, text="IdeaBar Keybinds", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
             side="left")
         self.toggle_keybinds = TextToggleSwitch(row_keys, command=self.toggle_keybind_section)
         self.toggle_keybinds.pack(side="right")
@@ -403,14 +403,14 @@ class SettingsPage(AnimatedFrame):
         # --- Sub-Section: Keybind Configuration Fields ---
         self.sub_keybind_frame = tk.Frame(self, bg=COLOR_CARD, padx=15, pady=15)
 
-        tk.Label(self.sub_keybind_frame, text="CAPTURE NEW IDEA BIND (CLICK TO RECORD)", font=FONT_LABEL,
+        tk.Label(self.sub_keybind_frame, text="New Idea Keybind", font=FONT_LABEL,
                  fg=COLOR_TEXT_MUTED, bg=COLOR_CARD, anchor="w").pack(fill="x")
         self.entry_kb_new = tk.Entry(self.sub_keybind_frame, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                      insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                      highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
         self.entry_kb_new.pack(fill="x", pady=(4, 12), ipady=6)
 
-        tk.Label(self.sub_keybind_frame, text="OPEN ARCHIVE BIND (CLICK TO RECORD)", font=FONT_LABEL,
+        tk.Label(self.sub_keybind_frame, text="Show Ideas Keybind", font=FONT_LABEL,
                  fg=COLOR_TEXT_MUTED, bg=COLOR_CARD, anchor="w").pack(fill="x")
         self.entry_kb_show = tk.Entry(self.sub_keybind_frame, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                       insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
@@ -433,7 +433,7 @@ class SettingsPage(AnimatedFrame):
         # --- Setting Row: Autostart Switch for IdeaBar.exe ---
         row_autostart = tk.Frame(self, bg=COLOR_BG)
         row_autostart.pack(fill="x", pady=8)
-        tk.Label(row_autostart, text="START IDEABAR.EXE ON PC BOOT", font=FONT_BODY, fg=COLOR_TEXT_MAIN,
+        tk.Label(row_autostart, text="Start Bar on System Startup", font=FONT_BODY, fg=COLOR_TEXT_MAIN,
                  bg=COLOR_BG).pack(
             side="left")
         self.toggle_autostart = TextToggleSwitch(row_autostart)
@@ -444,7 +444,7 @@ class SettingsPage(AnimatedFrame):
         row_bar.pack(fill="x", pady=8)
 
         # Text-Label links oben verankern, damit es sich bei zwei Zeilen rechts nicht verschiebt
-        tk.Label(row_bar, text="EXTERNAL DAEMONS // SIDEBAR", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
+        tk.Label(row_bar, text="IdeaBar", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
             side="left", anchor="n", pady=4)
 
         # Rechter Container für das vertikale Stapeln der Steuerelemente
@@ -453,7 +453,7 @@ class SettingsPage(AnimatedFrame):
 
         # [ Close Button ] (Obere Position)
         self.btn_close_bar = tk.Button(
-            btn_control_frame, text="[ Close IdeaBar.exe ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            btn_control_frame, text="[ Close IdeaBar ]", font=FONT_LABEL, bd=0, highlightthickness=0,
             padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_DOT,
             activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.close_ideabar
         )
@@ -463,7 +463,7 @@ class SettingsPage(AnimatedFrame):
 
         # [ Launch Button ] (Direkt unter dem Close Button platziert)
         self.btn_launch_bar = tk.Button(
-            btn_control_frame, text="[ Launch IdeaBar.exe ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            btn_control_frame, text="[ Launch IdeaBar ]", font=FONT_LABEL, bd=0, highlightthickness=0,
             padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_TEXT_MUTED,
             activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.launch_ideabar
         )
