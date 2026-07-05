@@ -18,7 +18,7 @@ echo Installation Path now is %chosen_path_of_installation%
 
 mkdir "%chosen_path_of_installation%\Idea Pad"
 curl -L -o "%chosen_path_of_installation%\Idea Pad\Idea.Pad.2.0.exe" "https://github.com/JojoNeedsPizza/IdeaPad/releases/download/Prerelease1.0/Idea.Pad.2.0.exe"
-curl -L -o "%chosen_path_of_installation%\Idea Pad\idea_daemon.exe" "https://github.com/JojoNeedsPizza/IdeaPad/releases/download/Prerelease1.0/Idea.Pad.2.0.exe"
+curl -L -o "%chosen_path_of_installation%\Idea Pad\idea_daemon.exe" "https://github.com/JojoNeedsPizza/IdeaPad/releases/download/Prerelease1.0/idea_daemon.exe"
 
 echo Do you want, that the IdeaBar gets added to the Autostart?
 echo.
