@@ -636,30 +636,30 @@ class NothingDock(QWidget):
         self._hotkey_timer.start(50)
 
     def load_hotkeys_from_settings(self):
-        add_str = "<Control-n>"
-        show_str = "<Control-s>"
-        self.keybinds_enabled = False
-
-        if SETTINGS_FILE.exists():
-            try:
-                mtime = os.path.getmtime(SETTINGS_FILE)
-                if self._last_settings_mtime == mtime:
-                    return
-                self._last_settings_mtime = mtime
-
-                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                    self.keybinds_enabled = config.get("keybinds_enabled", False)
-                    add_str = config.get("keybind_new_idea", add_str)
-                    show_str = config.get("keybind_show_ideas", show_str)
-            except Exception:
-                pass
-        else:
+        if not SETTINGS_FILE.exists():
+            self.keybinds_enabled = False
             self._last_settings_mtime = 0
+            self.vk_add_idea = self._parse_hotkey_string("<Control-n>")
+            self.vk_show_ideas = self._parse_hotkey_string("<Control-s>")
+            return
 
-        self.vk_add_idea = self._parse_hotkey_string(add_str)
-        self.vk_show_ideas = self._parse_hotkey_string(show_str)
+        try:
+            mtime = os.path.getmtime(SETTINGS_FILE)
+            # Safe to return early here now, as we haven't touched the active flag state yet
+            if self._last_settings_mtime == mtime:
+                return
+            self._last_settings_mtime = mtime
 
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                self.keybinds_enabled = config.get("keybinds_enabled", False)
+                add_str = config.get("keybind_new_idea", "<Control-n>")
+                show_str = config.get("keybind_show_ideas", "<Control-s>")
+
+            self.vk_add_idea = self._parse_hotkey_string(add_str)
+            self.vk_show_ideas = self._parse_hotkey_string(show_str)
+        except Exception:
+            pass
     def _parse_hotkey_string(self, hotkey_str: str) -> list[int]:
         vk_map = {
             "alt": 0x12, "shift": 0x10, "ctrl": 0x11, "control": 0x11,
