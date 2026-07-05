@@ -6,25 +6,6 @@ from tkinter import messagebox
 import json
 import datetime
 
-# --- MULTIPLEXING CHECK FOR PYINSTALLER ---
-# Wenn diese Datei/EXE mit dem Argument '--daemon' aufgerufen wird,
-# starten wir direkt das PyQt-Dock und überspringen Tkinter komplett.
-# --- MULTIPLEXING CHECK FOR PYINSTALLER ---
-if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
-    try:
-        from PyQt5.QtWidgets import QApplication
-    except ImportError:
-        from PyQt6.QtWidgets import QApplication
-
-    from idea_daemon import NothingDock
-
-    app = QApplication(sys.argv)
-    dock = NothingDock()
-    dock.show()
-
-    # AUCH HIER ANPASSEN:
-    sys.exit(app.exec() if hasattr(app, 'exec') else app.exec())
-
 # --- NOTHING DESIGN GUIDELINES ---
 COLOR_BG = "#000000"
 COLOR_CARD = "#121212"
@@ -59,10 +40,10 @@ def save_to_json(data):
 
 def load_settings():
     default_settings = {
-        "autostart_bar": False,
         "keybinds_enabled": False,
         "keybind_new_idea": "<Control-n>",
-        "keybind_show_ideas": "<Control-s>"
+        "keybind_show_ideas": "<Control-s>",
+        "ideabar_autostart": False
     }
     if os.path.exists(SETTINGS_FILE):
         with open(SETTINGS_FILE, "r", encoding="utf-8") as file:
@@ -79,17 +60,6 @@ def load_settings():
 def save_settings(data):
     with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
-
-
-# --- LAUNCHER LOGIC FOR SINGLE EXE ---
-def launch_dock_bar():
-    """Startet das Dock sauber als separaten Prozess – egal ob als Skript oder EXE."""
-    if getattr(sys, 'frozen', False):
-        # Wenn als EXE kompiliert: Starte eine zweite Instanz der EXE mit dem Flag
-        subprocess.Popen([sys.executable, "--daemon"])
-    else:
-        # Im Editor (Development): Starte das rohe Python-Skript
-        subprocess.Popen([sys.executable, "idea_daemon.py"])
 
 
 # --- HOVER & ANIMATION ELEMENTS ---
@@ -143,7 +113,30 @@ class TextToggleSwitch(tk.Button):
 class IdeaPadApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("IdeaPad // OS")
+        self.root.title("IdeaPad 2.0")
+
+        # --- DYNAMIC ASSET PATH RESOLUTION (FOR PYINSTALLER INTERNAL BUNDLE) ---
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+
+        icon_ico_path = os.path.join(base_path, "icon.ico")
+        icon_png_path = os.path.join(base_path, "icon.png")
+
+        # --- SET APPLICATION ICON ---
+        if os.path.exists(icon_ico_path):
+            try:
+                self.root.iconbitmap(icon_ico_path)
+            except Exception:
+                pass
+        elif os.path.exists(icon_png_path):
+            try:
+                self.icon_img = tk.PhotoImage(file=icon_png_path)
+                self.root.iconphoto(False, self.icon_img)
+            except Exception:
+                pass
+
         self.root.geometry("600x650")
         self.root.minsize(450, 500)
         self.root.configure(bg=COLOR_BG)
@@ -167,11 +160,6 @@ class IdeaPadApp:
             frame.grid(row=0, column=0, sticky="nsew")
 
         self.show_frame("MainMenu")
-        self.apply_global_keybinds()
-
-        # Falls Autostart für die Bar aktiv ist, beim App-Start triggern
-        if self.settings.get("autostart_bar", False):
-            launch_dock_bar()
 
     def show_frame(self, page_name):
         frame = self.frames[page_name]
@@ -181,10 +169,6 @@ class IdeaPadApp:
             frame.load_current_settings_to_ui()
         frame.tkraise()
         frame.animate_fade_in()
-
-    def apply_global_keybinds(self):
-        """Deaktiviert: Globale Keybinds blockieren hier nichts mehr."""
-        pass
 
 
 # --- MIXIN FOR ANIMATIONS ---
@@ -211,17 +195,17 @@ class MainMenu(AnimatedFrame):
             side="left")
         tk.Label(header_frame, text="●", font=("Arial", 10), fg=COLOR_DOT, bg=COLOR_BG).pack(side="left", padx=5,
                                                                                              pady=(15, 0))
-        tk.Label(header_frame, text="// SYSTEM CORE", font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(
+        tk.Label(header_frame, text="// GOOD IDEAS UNFORGOTTEN", font=FONT_TIMESTAMP, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(
             side="left", padx=5, pady=(12, 0))
 
-        EssentialButton(self, text="⚡ Capture New Idea", command=lambda: controller.show_frame("AddIdeaPage")).pack(
+        EssentialButton(self, text="⚡ Add Idea", command=lambda: controller.show_frame("AddIdeaPage")).pack(
             fill="x", pady=6)
-        EssentialButton(self, text="📂 Open Idea Archive", command=lambda: controller.show_frame("ShowIdeasPage")).pack(
+        EssentialButton(self, text="📂 Show Ideas", command=lambda: controller.show_frame("ShowIdeasPage")).pack(
             fill="x", pady=6)
-        EssentialButton(self, text="⚙ System Settings", command=lambda: controller.show_frame("SettingsPage")).pack(
+        EssentialButton(self, text="⚙ Settings", command=lambda: controller.show_frame("SettingsPage")).pack(
             fill="x", pady=6)
 
-        exit_lbl = tk.Label(self, text="[ Power Off ]", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
+        exit_lbl = tk.Label(self, text="[ Quit ]", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
                             cursor="hand2")
         exit_lbl.pack(side="bottom", pady=20)
         exit_lbl.bind("<Button-1>", lambda e: parent.quit())
@@ -238,14 +222,14 @@ class AddIdeaPage(AnimatedFrame):
         tk.Label(self, text="New Idea.", font=FONT_DOTMATRIX, fg=COLOR_TEXT_MAIN, bg=COLOR_BG, anchor="w").pack(
             fill="x", pady=(10, 30))
 
-        tk.Label(self, text="CONCEPT IDENTIFIER", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, anchor="w").pack(
+        tk.Label(self, text="Whats your Idea called?", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, anchor="w").pack(
             fill="x")
         self.entry_name = tk.Entry(self, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                    insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                    highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
         self.entry_name.pack(fill="x", pady=(5, 25), ipady=10)
 
-        tk.Label(self, text="THOUGHT DATA // NOTES", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
+        tk.Label(self, text="Notes of your Idea", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG,
                  anchor="w").pack(fill="x")
         self.text_desc = tk.Text(self, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_CARD,
                                  insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=0, height=8)
@@ -257,7 +241,7 @@ class AddIdeaPage(AnimatedFrame):
         tk.Button(footer, text="✕ Cancel", font=FONT_BODY, fg=COLOR_TEXT_MUTED, bg=COLOR_BG, bd=0,
                   activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
                   command=lambda: controller.show_frame("MainMenu")).pack(side="left")
-        EssentialButton(footer, text="Save to Archive", command=self.save_idea).pack(side="right")
+        EssentialButton(footer, text="Save it!", command=self.save_idea).pack(side="right")
 
         self.text_desc.bind("<Shift-Return>", lambda event: self.save_idea())
 
@@ -266,7 +250,7 @@ class AddIdeaPage(AnimatedFrame):
         desc = self.text_desc.get("1.0", "end-1c")
 
         if name.strip() == "":
-            messagebox.showwarning("System", "Identification title required.")
+            messagebox.showwarning("System", "Name required.")
             return
 
         db = load_database()
@@ -298,7 +282,7 @@ class ShowIdeasPage(AnimatedFrame):
         tk.Button(header, text="← Menu", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG, bd=0,
                   activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MUTED,
                   command=lambda: controller.show_frame("MainMenu")).pack(side="left")
-        tk.Label(header, text="Idea Archive", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(side="right",
+        tk.Label(header, text="All your Ideas", font=FONT_LABEL, fg=COLOR_TEXT_MUTED, bg=COLOR_BG).pack(side="right",
                                                                                                       pady=5)
 
         self.canvas = tk.Canvas(self, bg=COLOR_BG, highlightthickness=0)
@@ -329,7 +313,7 @@ class ShowIdeasPage(AnimatedFrame):
 
         db = load_database()
         if not db:
-            tk.Label(self.scrollable_frame, text="ARCHIVE_EMPTY // NO_DATA", font=FONT_BODY, fg=COLOR_DOT,
+            tk.Label(self.scrollable_frame, text="Pretty empty rn. Ideas incoming...", font=FONT_BODY, fg=COLOR_DOT,
                      bg=COLOR_BG).pack(pady=80)
             return
 
@@ -421,7 +405,7 @@ class ShowIdeasPage(AnimatedFrame):
                 self.refresh_list()
 
 
-# --- 4. THE SYSTEM SETTINGS INTERFACE (With Interactive Key-Recorder) ---
+# --- 4. THE SYSTEM SETTINGS INTERFACE ---
 class SettingsPage(AnimatedFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COLOR_BG)
@@ -431,30 +415,10 @@ class SettingsPage(AnimatedFrame):
         tk.Label(self, text="Settings.", font=FONT_DOTMATRIX, fg=COLOR_TEXT_MAIN, bg=COLOR_BG, anchor="w").pack(
             fill="x", pady=(10, 25))
 
-        # --- Setting Row 1: Autostart Bar ---
-        row_auto = tk.Frame(self, bg=COLOR_BG)
-        row_auto.pack(fill="x", pady=12)
-        tk.Label(row_auto, text="AUTOSTART DOCK BAR", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(side="left")
-        self.toggle_autostart = TextToggleSwitch(row_auto, command=self.handle_toggle_change)
-        self.toggle_autostart.pack(side="right")
-
-        # --- Setting Row 2: Close Bar (Button Only) ---
-        row_close = tk.Frame(self, bg=COLOR_BG)
-        row_close.pack(fill="x", pady=12)
-        tk.Label(row_close, text="DOCK OVERLAY CONTROL", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
-            side="left")
-
-        btn_close_bar = tk.Button(
-            row_close, text="[ Launch Bar ]", font=FONT_LABEL, bd=0, highlightthickness=0,
-            fg=COLOR_TEXT_MAIN, bg=COLOR_BG, activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
-            cursor="hand2", command=self.open_dock_bar_signal
-        )
-        btn_close_bar.pack(side="right")
-
-        # --- Setting Row 3: Keybind Master Switch ---
+        # --- Setting Row: Keybind Master Switch ---
         row_keys = tk.Frame(self, bg=COLOR_BG)
         row_keys.pack(fill="x", pady=12)
-        tk.Label(row_keys, text="GLOBAL SYSTEM KEYBINDS", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
+        tk.Label(row_keys, text="IdeaBar Keybinds", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
             side="left")
         self.toggle_keybinds = TextToggleSwitch(row_keys, command=self.toggle_keybind_section)
         self.toggle_keybinds.pack(side="right")
@@ -462,21 +426,21 @@ class SettingsPage(AnimatedFrame):
         # --- Sub-Section: Keybind Configuration Fields ---
         self.sub_keybind_frame = tk.Frame(self, bg=COLOR_CARD, padx=15, pady=15)
 
-        tk.Label(self.sub_keybind_frame, text="CAPTURE NEW IDEA BIND (CLICK TO RECORD)", font=FONT_LABEL,
+        tk.Label(self.sub_keybind_frame, text="New Idea Keybind", font=FONT_LABEL,
                  fg=COLOR_TEXT_MUTED, bg=COLOR_CARD, anchor="w").pack(fill="x")
         self.entry_kb_new = tk.Entry(self.sub_keybind_frame, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                      insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                      highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
         self.entry_kb_new.pack(fill="x", pady=(4, 12), ipady=6)
 
-        tk.Label(self.sub_keybind_frame, text="OPEN ARCHIVE BIND (CLICK TO RECORD)", font=FONT_LABEL,
+        tk.Label(self.sub_keybind_frame, text="Show Ideas Keybind", font=FONT_LABEL,
                  fg=COLOR_TEXT_MUTED, bg=COLOR_CARD, anchor="w").pack(fill="x")
         self.entry_kb_show = tk.Entry(self.sub_keybind_frame, font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG,
                                       insertbackground=COLOR_TEXT_MAIN, bd=0, highlightthickness=1,
                                       highlightbackground="#222222", highlightcolor=COLOR_TEXT_MAIN)
         self.entry_kb_show.pack(fill="x", pady=(4, 4), ipady=6)
 
-        # Event-Bindings für interaktive Tastenaufnahme anheften
+        # Event-Bindings für interaktive Tastenaufnahme
         self.entry_kb_new.bind("<FocusIn>", lambda e: self.start_recording(self.entry_kb_new))
         self.entry_kb_new.bind("<KeyPress>", lambda e: self.record_key(e, self.entry_kb_new))
         self.entry_kb_new.bind("<KeyRelease>", lambda e: self.stop_recording(e, self.entry_kb_new))
@@ -484,6 +448,51 @@ class SettingsPage(AnimatedFrame):
         self.entry_kb_show.bind("<FocusIn>", lambda e: self.start_recording(self.entry_kb_show))
         self.entry_kb_show.bind("<KeyPress>", lambda e: self.record_key(e, self.entry_kb_show))
         self.entry_kb_show.bind("<KeyRelease>", lambda e: self.stop_recording(e, self.entry_kb_show))
+
+        # --- Separator Line (Fest definiert für stabiles Layout) ---
+        self.separator = tk.Frame(self, bg="#222222", height=1)
+        self.separator.pack(fill="x", pady=15)
+
+        # --- Setting Row: Autostart Switch for idea_daemon.exe ---
+        row_autostart = tk.Frame(self, bg=COLOR_BG)
+        row_autostart.pack(fill="x", pady=8)
+        tk.Label(row_autostart, text="Start Bar on System Startup", font=FONT_BODY, fg=COLOR_TEXT_MAIN,
+                 bg=COLOR_BG).pack(
+            side="left")
+        self.toggle_autostart = TextToggleSwitch(row_autostart)
+        self.toggle_autostart.pack(side="right")
+
+        # --- Setting Row: Background Process Control (idea_daemon) ---
+        row_bar = tk.Frame(self, bg=COLOR_BG)
+        row_bar.pack(fill="x", pady=8)
+
+        # Text-Label links oben verankern, damit es sich bei zwei Zeilen rechts nicht verschiebt
+        tk.Label(row_bar, text="idea_daemon", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
+            side="left", anchor="n", pady=4)
+
+        # Rechter Container für das vertikale Stapeln der Steuerelemente
+        btn_control_frame = tk.Frame(row_bar, bg=COLOR_BG)
+        btn_control_frame.pack(side="right", anchor="n")
+
+        # [ Close Button ] (Obere Position)
+        self.btn_close_bar = tk.Button(
+            btn_control_frame, text="[ Close idea_daemon ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_DOT,
+            activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.close_ideabar
+        )
+        self.btn_close_bar.pack(side="top", anchor="e")
+        self.btn_close_bar.bind("<Enter>", lambda e: self.btn_close_bar.config(fg=COLOR_TEXT_MAIN))
+        self.btn_close_bar.bind("<Leave>", lambda e: self.btn_close_bar.config(fg=COLOR_DOT))
+
+        # [ Launch Button ] (Direkt unter dem Close Button platziert)
+        self.btn_launch_bar = tk.Button(
+            btn_control_frame, text="[ Launch idea_daemon ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_TEXT_MUTED,
+            activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.launch_ideabar
+        )
+        self.btn_launch_bar.pack(side="top", anchor="e", pady=(2, 0))
+        self.btn_launch_bar.bind("<Enter>", lambda e: self.btn_launch_bar.config(fg=COLOR_TEXT_MAIN))
+        self.btn_launch_bar.bind("<Leave>", lambda e: self.btn_launch_bar.config(fg=COLOR_TEXT_MUTED))
 
         # Footer Actions
         footer = tk.Frame(self, bg=COLOR_BG)
@@ -493,6 +502,50 @@ class SettingsPage(AnimatedFrame):
                   activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN,
                   command=lambda: controller.show_frame("MainMenu")).pack(side="left")
         EssentialButton(footer, text="Apply Changes", command=self.save_current_settings).pack(side="right")
+
+    # --- LAUNCH EXTERNAL DAEMON ---
+    def launch_ideabar(self):
+        exe_path = os.path.abspath("idea_daemon.exe")
+        script_path = os.path.abspath("idea_daemon.py")
+
+        try:
+            if os.path.exists(exe_path):
+                subprocess.Popen([exe_path], cwd=os.path.dirname(exe_path))
+                messagebox.showinfo("System", "idea_daemon.exe launched successfully.")
+            elif os.path.exists(script_path):
+                subprocess.Popen([sys.executable, script_path], cwd=os.path.dirname(script_path))
+                messagebox.showinfo("System", "idea_daemon.py process initiated.")
+            else:
+                messagebox.showerror("Error", "idea_daemon target file not found in directory.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to execute process: {e}")
+
+    # --- TERMINATE EXTERNAL DAEMON ---
+    def close_ideabar(self):
+        try:
+            subprocess.run(["taskkill", "/F", "/IM", "idea_daemon.exe"], creationflags=0x08000000)
+            messagebox.showinfo("System", "Termination command sent to idea_daemon.exe.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to execute taskkill: {e}")
+
+    # --- WINDOWS REGISTRY AUTOSTART MANAGEMENT ---
+    def update_windows_autostart(self, enabled):
+        if sys.platform == "win32":
+            import winreg
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            try:
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
+                if enabled:
+                    exe_path = os.path.abspath("idea_daemon.exe")
+                    winreg.SetValueEx(key, "idea_daemon", 0, winreg.REG_SZ, f'"{exe_path}"')
+                else:
+                    try:
+                        winreg.DeleteValue(key, "idea_daemon")
+                    except FileNotFoundError:
+                        pass
+                winreg.CloseKey(key)
+            except Exception as e:
+                messagebox.showerror("System Error", f"Failed to update Windows Registry: {e}")
 
     # --- INTERACTIVE SHORTCUT RECORDER CORE ---
     def start_recording(self, entry_widget):
@@ -543,8 +596,8 @@ class SettingsPage(AnimatedFrame):
 
     def load_current_settings_to_ui(self):
         s = self.controller.settings
-        self.toggle_autostart.set_state(s.get("autostart_bar", False))
         self.toggle_keybinds.set_state(s.get("keybinds_enabled", False))
+        self.toggle_autostart.set_state(s.get("ideabar_autostart", False))
 
         self.entry_kb_new.delete(0, "end")
         self.entry_kb_new.insert(0, s.get("keybind_new_idea", "<Control-n>"))
@@ -556,23 +609,16 @@ class SettingsPage(AnimatedFrame):
 
     def toggle_keybind_section(self, is_enabled):
         if is_enabled:
-            self.sub_keybind_frame.pack(fill="x", pady=(5, 15),
-                                        before=self.sub_keybind_frame.master.winfo_children()[-1])
+            self.sub_keybind_frame.pack(fill="x", pady=(5, 15), before=self.separator)
         else:
             self.sub_keybind_frame.pack_forget()
 
-    def handle_toggle_change(self, state):
-        pass
-
-    def open_dock_bar_signal(self):
-        launch_dock_bar()
-
     def save_current_settings(self):
         updated_settings = {
-            "autostart_bar": self.toggle_autostart.state,
             "keybinds_enabled": self.toggle_keybinds.state,
             "keybind_new_idea": self.entry_kb_new.get().strip(),
-            "keybind_show_ideas": self.entry_kb_show.get().strip()
+            "keybind_show_ideas": self.entry_kb_show.get().strip(),
+            "ideabar_autostart": self.toggle_autostart.state
         }
 
         if updated_settings["keybind_new_idea"] in ("", "[ Listening... ]") or updated_settings[
@@ -580,14 +626,23 @@ class SettingsPage(AnimatedFrame):
             messagebox.showwarning("System Configuration", "Keybind fields cannot be left empty.")
             return
 
+        self.update_windows_autostart(updated_settings["ideabar_autostart"])
+
         save_settings(updated_settings)
         self.controller.settings = updated_settings
-        self.controller.apply_global_keybinds()
         self.controller.show_frame("MainMenu")
 
 
 # --- RUN ---
 if __name__ == "__main__":
+    # Force Windows to recognize this as a distinct application to fix the taskbar icon
+    if sys.platform == "win32":
+        import ctypes
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("nothing.ideapad.app.2.0")
+        except Exception:
+            pass
+
     root = tk.Tk()
     app = IdeaPadApp(root)
     root.mainloop()

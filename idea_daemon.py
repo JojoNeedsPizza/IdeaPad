@@ -1,4 +1,5 @@
 import sys
+import os
 import json
 import datetime
 import ctypes
@@ -14,6 +15,15 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QPointF, QPropertyAnimation, QEasingCurve, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ABSOLUTE PFAD- & AUTOSTART-SICHERUNG
+# ═══════════════════════════════════════════════════════════════════════════════
+BASE_DIR = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+os.chdir(str(BASE_DIR))  # Zwingt Windows, diesen Ordner als Arbeitsverzeichnis zu nutzen
+
+DATABASE_FILE = BASE_DIR / "database.json"
+SETTINGS_FILE = BASE_DIR / "settings.json"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DPI AWARENESS
@@ -34,16 +44,6 @@ SWP_ZORDER_ONLY = (
         win32con.SWP_NOSIZE |
         win32con.SWP_NOACTIVATE
 )
-
-# Win32 Global Hotkey Modifiers & Codes
-WM_HOTKEY = 0x0312
-MOD_ALT = 0x0001
-MOD_SHIFT = 0x0004
-VK_A = 0x41  # 'A' key
-VK_S = 0x53  # 'S' key
-
-DATABASE_FILE = Path(__file__).parent / "database.json"
-SETTINGS_FILE = Path(__file__).parent / "settings.json"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -173,7 +173,7 @@ def draw_launch(p: QPainter, cx: float, cy: float, s: float, color: QColor):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Dock-Button Logik
+# Button Definitionen
 # ═══════════════════════════════════════════════════════════════════════════════
 class GlyphButton:
     def __init__(self, x: int, w: int, draw_fn, label: str):
@@ -191,7 +191,7 @@ class GlyphButton:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# AddIdeaWindow (Eingabe- & Edit-Menü)
+# AddIdeaWindow (Eingabe / Edit Popup)
 # ═══════════════════════════════════════════════════════════════════════════════
 class AddIdeaWindow(QWidget):
     def __init__(self, dock_x: int, dock_y: int, dock_w: int, dock_parent, edit_key=None, current_name="",
@@ -362,7 +362,7 @@ class AddIdeaWindow(QWidget):
                 "Date and Time": date_str
             }
             with open(DATABASE_FILE, "w", encoding="utf-8") as file:
-                json.dump(databasetemp, file, indent=4)
+                json.dump(databasetemp, file, indent=4, ensure_ascii=False)
             self.fade_out_and_close()
             QTimer.singleShot(220, self.dock_parent.trigger_show_ideas)
         else:
@@ -374,7 +374,7 @@ class AddIdeaWindow(QWidget):
                 "Date and Time": date_str
             }
             with open(DATABASE_FILE, "w", encoding="utf-8") as file:
-                json.dump(databasetemp, file, indent=4)
+                json.dump(databasetemp, file, indent=4, ensure_ascii=False)
             self.fade_out_and_close()
 
 
@@ -441,22 +441,12 @@ class IdeaCard(QFrame):
             layout.addWidget(desc_lbl)
 
     def set_normal_style(self):
-        self.setStyleSheet("""
-            QFrame#IdeaCardFrame {
-                background-color: #151515;
-                border: 1px solid #222222;
-                border-radius: 4px;
-            }
-        """)
+        self.setStyleSheet(
+            "QFrame#IdeaCardFrame { background-color: #151515; border: 1px solid #222222; border-radius: 4px; }")
 
     def set_hover_style(self):
-        self.setStyleSheet("""
-            QFrame#IdeaCardFrame {
-                background-color: #191919;
-                border: 1px solid #333333;
-                border-radius: 4px;
-            }
-        """)
+        self.setStyleSheet(
+            "QFrame#IdeaCardFrame { background-color: #191919; border: 1px solid #333333; border-radius: 4px; }")
 
     def enterEvent(self, event):
         self.set_hover_style()
@@ -468,7 +458,7 @@ class IdeaCard(QFrame):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ShowIdeasWindow
+# ShowIdeasWindow (Liste gespeicherter Ideen)
 # ═══════════════════════════════════════════════════════════════════════════════
 class ShowIdeasWindow(QWidget):
     def __init__(self, dock_x: int, dock_y: int, dock_w: int, dock_parent):
@@ -594,8 +584,9 @@ class ShowIdeasWindow(QWidget):
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(QPointF(self.win_w - 14, 14), 3, 3)
 
+
 # ═══════════════════════════════════════════════════════════════════════════════
-# NothingDock — Haupt-Overlay (3 Buttons, Breite erhöht auf 240px)
+# NothingDock — Haupt-Overlay
 # ═══════════════════════════════════════════════════════════════════════════════
 class NothingDock(QWidget):
     DOCK_W = 240
@@ -627,55 +618,64 @@ class NothingDock(QWidget):
         self._hover_x = -1
         self.setMouseTracking(True)
 
-        # ═══════════════════════════════════════════════════════════════════════════════
-        # OPTIMIERTER SETTINGS.JSON HOTKEYS LOADER (Für <Prior> & <Next>)
-        # ═══════════════════════════════════════════════════════════════════════════════
+        # Hotkey Configuration Tracker Variables
+        self._last_settings_mtime = 0
+        self.keybinds_enabled = False
         self.vk_add_idea = []
         self.vk_show_ideas = []
         self.hotkey_add_active = False
         self.hotkey_show_active = False
         self.load_hotkeys_from_settings()
 
-        # Hintergrund-Timer für Fullscreen-Checks (alle 500ms)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update_state)
         self._timer.start(500)
 
-        # Hochperformanter Timer für globale Hotkeys (alle 50ms)
         self._hotkey_timer = QTimer(self)
         self._hotkey_timer.timeout.connect(self.check_global_hotkeys)
         self._hotkey_timer.start(50)
 
     def load_hotkeys_from_settings(self):
-        """Liest Tastenkombinationen direkt aus deiner settings.json"""
-        add_str = "<Prior>"
-        show_str = "<Next>"
+        if not SETTINGS_FILE.exists():
+            self.keybinds_enabled = False
+            self._last_settings_mtime = 0
+            self.vk_add_idea = self._parse_hotkey_string("<Control-n>")
+            self.vk_show_ideas = self._parse_hotkey_string("<Control-s>")
+            return
 
-        if SETTINGS_FILE.exists():
-            try:
-                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                    # Matcht exakt deine Keys aus der JSON
-                    add_str = config.get("keybind_new_idea", add_str)
-                    show_str = config.get("keybind_show_ideas", show_str)
-            except Exception as e:
-                print(f"Fehler beim Laden der settings.json: {e}")
+        try:
+            mtime = os.path.getmtime(SETTINGS_FILE)
+            # Safe to return early here now, as we haven't touched the active flag state yet
+            if self._last_settings_mtime == mtime:
+                return
+            self._last_settings_mtime = mtime
 
-        # Konvertierung in native Windows-Keycodes
-        self.vk_add_idea = self._parse_hotkey_string(add_str)
-        self.vk_show_ideas = self._parse_hotkey_string(show_str)
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                self.keybinds_enabled = config.get("keybinds_enabled", False)
+                add_str = config.get("keybind_new_idea", "<Control-n>")
+                show_str = config.get("keybind_show_ideas", "<Control-s>")
 
+            self.vk_add_idea = self._parse_hotkey_string(add_str)
+            self.vk_show_ideas = self._parse_hotkey_string(show_str)
+        except Exception:
+            pass
     def _parse_hotkey_string(self, hotkey_str: str) -> list[int]:
-        """Übersetzt Strings wie '<Prior>' oder 'Alt+<Prior>' in Windows Virtual Keys"""
         vk_map = {
             "alt": 0x12, "shift": 0x10, "ctrl": 0x11, "control": 0x11,
             "win": 0x5B, "windows": 0x5B, "tab": 0x09, "enter": 0x0D, "space": 0x20,
-            "<prior>": 0x21, "prior": 0x21, "pageup": 0x21, "page up": 0x21,  # Bild auf
-            "<next>": 0x22, "next": 0x22, "pagedown": 0x22, "page down": 0x22   # Bild ab
+            "prior": 0x21, "pageup": 0x21, "page up": 0x21,
+            "next": 0x22, "pagedown": 0x22, "page down": 0x22
         }
+
+        cleaned = hotkey_str.strip()
+        if cleaned.startswith("<") and cleaned.endswith(">"):
+            cleaned = cleaned[1:-1]
+
+        cleaned = cleaned.replace("+", "-")
+        parts = [p.strip().lower() for p in cleaned.split("-") if p.strip()]
+
         vks = []
-        # Splittet bei eventuellen Kombinationen wie "Alt+<Prior>"
-        parts = [p.strip().lower() for p in hotkey_str.split("+")]
         for part in parts:
             if part in vk_map:
                 vks.append(vk_map[part])
@@ -684,9 +684,10 @@ class NothingDock(QWidget):
         return vks
 
     def check_global_hotkeys(self):
-        """Überprüft im Hintergrund den Zustand der Tasten"""
+        if not self.keybinds_enabled:
+            return
+
         try:
-            # 1. Hotkey für "New Idea" prüfen
             if self.vk_add_idea and all(ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000 for vk in self.vk_add_idea):
                 if not self.hotkey_add_active:
                     self.hotkey_add_active = True
@@ -694,15 +695,15 @@ class NothingDock(QWidget):
             else:
                 self.hotkey_add_active = False
 
-            # 2. Hotkey für "Show Ideas" prüfen
-            if self.vk_show_ideas and all(ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000 for vk in self.vk_show_ideas):
+            if self.vk_show_ideas and all(
+                    ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000 for vk in self.vk_show_ideas):
                 if not self.hotkey_show_active:
                     self.hotkey_show_active = True
                     self.trigger_show_ideas()
             else:
                 self.hotkey_show_active = False
-        except Exception as e:
-            print(f"Hotkey-Polling-Fehler: {e}")
+        except Exception:
+            pass
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -717,6 +718,9 @@ class NothingDock(QWidget):
     def _update_state(self):
         if self._hwnd is None:
             return
+
+        self.load_hotkeys_from_settings()
+
         full = is_real_fullscreen()
         if full and not self._was_fullscreen:
             self._was_fullscreen = True
@@ -767,11 +771,15 @@ class NothingDock(QWidget):
 
     def trigger_open_main(self):
         self._close_popup()
-        main_script = Path(__file__).parent / "Idea Pad 2.0.py"
-        if main_script.exists():
-            subprocess.Popen([sys.executable, str(main_script)])
+        main_exe = BASE_DIR / "Idea Pad 2.0.exe"
+        main_script = BASE_DIR / "Idea Pad 2.0.py"
+
+        if main_exe.exists():
+            subprocess.Popen([str(main_exe)], cwd=str(BASE_DIR))
+        elif main_script.exists():
+            subprocess.Popen([sys.executable, str(main_script)], cwd=str(BASE_DIR))
         else:
-            print(f"Error: {main_script.name} not found in path.")
+            print("Hauptprogramm konnte nicht gefunden werden!")
 
     def mouseMoveEvent(self, event):
         self._hover_x = int(event.position().x())
@@ -813,44 +821,32 @@ class NothingDock(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
         p.setBrush(QBrush(QColor(10, 10, 10, 210)))
         p.setPen(Qt.PenStyle.NoPen)
-        p.drawRoundedRect(0, 0, self.DOCK_W, self.DOCK_H, 9, 9)
+        p.drawRoundedRect(0, 0, self.DOCK_W, self.DOCK_H, 8, 8)
 
-        p.setPen(QPen(QColor(55, 55, 55, 160), 1))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawRoundedRect(0, 0, self.DOCK_W - 1, self.DOCK_H - 1, 9, 9)
-
-        # Zwei Trennlinien zeichnen für 3 Buttons
-        sw = self.DOCK_W // 3
-        p.setPen(QPen(QColor(50, 50, 50, 140), 1))
-        p.drawLine(sw, 7, sw, self.DOCK_H - 7)
-        p.drawLine(sw * 2, 7, sw * 2, self.DOCK_H - 7)
-
-        for btn in self._buttons:
-            if btn.hovered:
-                p.setBrush(QBrush(QColor(255, 255, 255, 12)))
-                p.setPen(Qt.PenStyle.NoPen)
-                p.drawRoundedRect(btn.x, 1, btn.w, self.DOCK_H - 2, 9, 9)
-
-        cy = self.DOCK_H / 2
         for btn in self._buttons:
             cx = btn.x + btn.w / 2
+            cy = self.DOCK_H / 2
             btn.draw(p, cx, cy, btn.color())
 
-        p.setBrush(QBrush(QColor(229, 43, 31)))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(QPointF(self.DOCK_W - 8, 8), 2.5, 2.5)
-        p.end()
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Entry Point
-# ═══════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SINGLE INSTANCE CHECK (WINDOWS MUTEX)
+    # ═══════════════════════════════════════════════════════════════════════════
+    MUTEX_NAME = "Global\\NothingDock_IdeaBar_SingleInstance_Mutex"
+    ERROR_ALREADY_EXISTS = 183
+
+    # Erstellt einen systemweiten, benannten Mutex
+    hwnd_mutex = ctypes.windll.kernel32.CreateMutexW(None, ctypes.c_bool(False), MUTEX_NAME)
+    last_error = ctypes.windll.kernel32.GetLastError()
+
+    if last_error == ERROR_ALREADY_EXISTS:
+        # Falls der Mutex bereits existiert, beenden wir diese Instanz direkt
+        sys.exit(0)
+
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
     dock = NothingDock()
     dock.show()
     sys.exit(app.exec())
