@@ -771,7 +771,7 @@ class NothingDock(QWidget):
 
     def trigger_open_main(self):
         self._close_popup()
-        main_exe = BASE_DIR / "IdeaPad.exe"
+        main_exe = BASE_DIR / "Idea Pad 2.0.exe"
         main_script = BASE_DIR / "Idea Pad 2.0.py"
 
         if main_exe.exists():

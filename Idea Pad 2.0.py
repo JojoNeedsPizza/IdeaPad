@@ -114,6 +114,29 @@ class IdeaPadApp:
     def __init__(self, root):
         self.root = root
         self.root.title("IdeaPad 2.0")
+
+        # --- DYNAMIC ASSET PATH RESOLUTION (FOR PYINSTALLER INTERNAL BUNDLE) ---
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+
+        icon_ico_path = os.path.join(base_path, "icon.ico")
+        icon_png_path = os.path.join(base_path, "icon.png")
+
+        # --- SET APPLICATION ICON ---
+        if os.path.exists(icon_ico_path):
+            try:
+                self.root.iconbitmap(icon_ico_path)
+            except Exception:
+                pass
+        elif os.path.exists(icon_png_path):
+            try:
+                self.icon_img = tk.PhotoImage(file=icon_png_path)
+                self.root.iconphoto(False, self.icon_img)
+            except Exception:
+                pass
+
         self.root.geometry("600x650")
         self.root.minsize(450, 500)
         self.root.configure(bg=COLOR_BG)
@@ -430,7 +453,7 @@ class SettingsPage(AnimatedFrame):
         self.separator = tk.Frame(self, bg="#222222", height=1)
         self.separator.pack(fill="x", pady=15)
 
-        # --- Setting Row: Autostart Switch for IdeaBar.exe ---
+        # --- Setting Row: Autostart Switch for idea_daemon.exe ---
         row_autostart = tk.Frame(self, bg=COLOR_BG)
         row_autostart.pack(fill="x", pady=8)
         tk.Label(row_autostart, text="Start Bar on System Startup", font=FONT_BODY, fg=COLOR_TEXT_MAIN,
@@ -439,12 +462,12 @@ class SettingsPage(AnimatedFrame):
         self.toggle_autostart = TextToggleSwitch(row_autostart)
         self.toggle_autostart.pack(side="right")
 
-        # --- Setting Row: Background Process Control (IdeaBar) ---
+        # --- Setting Row: Background Process Control (idea_daemon) ---
         row_bar = tk.Frame(self, bg=COLOR_BG)
         row_bar.pack(fill="x", pady=8)
 
         # Text-Label links oben verankern, damit es sich bei zwei Zeilen rechts nicht verschiebt
-        tk.Label(row_bar, text="IdeaBar", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
+        tk.Label(row_bar, text="idea_daemon", font=FONT_BODY, fg=COLOR_TEXT_MAIN, bg=COLOR_BG).pack(
             side="left", anchor="n", pady=4)
 
         # Rechter Container für das vertikale Stapeln der Steuerelemente
@@ -453,7 +476,7 @@ class SettingsPage(AnimatedFrame):
 
         # [ Close Button ] (Obere Position)
         self.btn_close_bar = tk.Button(
-            btn_control_frame, text="[ Close IdeaBar ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            btn_control_frame, text="[ Close idea_daemon ]", font=FONT_LABEL, bd=0, highlightthickness=0,
             padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_DOT,
             activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.close_ideabar
         )
@@ -463,7 +486,7 @@ class SettingsPage(AnimatedFrame):
 
         # [ Launch Button ] (Direkt unter dem Close Button platziert)
         self.btn_launch_bar = tk.Button(
-            btn_control_frame, text="[ Launch IdeaBar ]", font=FONT_LABEL, bd=0, highlightthickness=0,
+            btn_control_frame, text="[ Launch idea_daemon ]", font=FONT_LABEL, bd=0, highlightthickness=0,
             padx=10, pady=4, cursor="hand2", bg=COLOR_BG, fg=COLOR_TEXT_MUTED,
             activebackground=COLOR_BG, activeforeground=COLOR_TEXT_MAIN, command=self.launch_ideabar
         )
@@ -482,26 +505,26 @@ class SettingsPage(AnimatedFrame):
 
     # --- LAUNCH EXTERNAL DAEMON ---
     def launch_ideabar(self):
-        exe_path = os.path.abspath("IdeaBar.exe")
-        script_path = os.path.abspath("IdeaBar.py")
+        exe_path = os.path.abspath("idea_daemon.exe")
+        script_path = os.path.abspath("idea_daemon.py")
 
         try:
             if os.path.exists(exe_path):
                 subprocess.Popen([exe_path], cwd=os.path.dirname(exe_path))
-                messagebox.showinfo("System", "IdeaBar.exe launched successfully.")
+                messagebox.showinfo("System", "idea_daemon.exe launched successfully.")
             elif os.path.exists(script_path):
                 subprocess.Popen([sys.executable, script_path], cwd=os.path.dirname(script_path))
-                messagebox.showinfo("System", "IdeaBar.py process initiated.")
+                messagebox.showinfo("System", "idea_daemon.py process initiated.")
             else:
-                messagebox.showerror("Error", "IdeaBar target file not found in directory.")
+                messagebox.showerror("Error", "idea_daemon target file not found in directory.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to execute process: {e}")
 
     # --- TERMINATE EXTERNAL DAEMON ---
     def close_ideabar(self):
         try:
-            subprocess.run(["taskkill", "/F", "/IM", "IdeaBar.exe"], creationflags=0x08000000)
-            messagebox.showinfo("System", "Termination command sent to IdeaBar.exe.")
+            subprocess.run(["taskkill", "/F", "/IM", "idea_daemon.exe"], creationflags=0x08000000)
+            messagebox.showinfo("System", "Termination command sent to idea_daemon.exe.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to execute taskkill: {e}")
 
@@ -513,11 +536,11 @@ class SettingsPage(AnimatedFrame):
             try:
                 key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
                 if enabled:
-                    exe_path = os.path.abspath("IdeaBar.exe")
-                    winreg.SetValueEx(key, "IdeaBar", 0, winreg.REG_SZ, f'"{exe_path}"')
+                    exe_path = os.path.abspath("idea_daemon.exe")
+                    winreg.SetValueEx(key, "idea_daemon", 0, winreg.REG_SZ, f'"{exe_path}"')
                 else:
                     try:
-                        winreg.DeleteValue(key, "IdeaBar")
+                        winreg.DeleteValue(key, "idea_daemon")
                     except FileNotFoundError:
                         pass
                 winreg.CloseKey(key)
@@ -612,6 +635,14 @@ class SettingsPage(AnimatedFrame):
 
 # --- RUN ---
 if __name__ == "__main__":
+    # Force Windows to recognize this as a distinct application to fix the taskbar icon
+    if sys.platform == "win32":
+        import ctypes
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("nothing.ideapad.app.2.0")
+        except Exception:
+            pass
+
     root = tk.Tk()
     app = IdeaPadApp(root)
     root.mainloop()
