@@ -26,8 +26,14 @@ echo Enter "1" if yes or "2" if not
 set /p autostart_y_n=Enter your pick and press ENTER:
 if "%autostart_y_n%"=="1" (
 curl -L -o "%chosen_path_of_installation%\Idea Pad\settings.json" "https://raw.githubusercontent.com/JojoNeedsPizza/IdeaPad/refs/heads/main/setup/Autostartoptions/Autostarttrue/settings.json"
+    set "key_path=HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
+    set "value_name=idea_daemon"
+ reg add "%key_path%" /v "%value_name%" /t REG_SZ /d "\"%chosen_path_of_installation%\Idea Pad\idea_daemon.exe"" /f >nul 2>&1
+echo Autostart enabled successfully.
 ) else (
 curl -L -o "%chosen_path_of_installation%\Idea Pad\settings.json" "https://raw.githubusercontent.com/JojoNeedsPizza/IdeaPad/refs/heads/main/setup/Autostartoptions/Autostartfalse/settings.json"
+    :: Delete from registry if it exists.
+    reg delete "%key_path%" /v "%value_name%" /f >nul 2>&1
 )
 
 echo.
