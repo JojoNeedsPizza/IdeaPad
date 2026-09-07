@@ -22,12 +22,12 @@ if os.path.exists("./result.json") and os.path.getsize("./result.json") > 0:
 
         writefiletosave =  str(savefileforstopoverwrite)  + str(ideadict)
 
-        print(writefiletosave)
+        writetojson = json.dumps(writefiletosave, indent=2)
 
         with open('result.json', 'w') as fp:
-            json.dump(writefiletosave, fp, indent=2)
+            json.dump(writetojson, fp, indent=2)
 
 else:
     with open('result.json', 'w') as fp:
-            json.dump(ideadict, fp, indent=2)
+            json.dump(json_string, fp, indent=2)
 
