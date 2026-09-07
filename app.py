@@ -10,21 +10,24 @@ description = input("Describe your idea: ")
 date = datetime.datetime.now()
 
 ideadict = {"Idea": idea, "Description": description}
+json_string = json.dumps(ideadict, indent=2)
 
+print(json_string)
 
 print(ideadict)
 if os.path.exists("./result.json") and os.path.getsize("./result.json") > 0:
     with open('result.json', 'r') as read_file_save:
         savefileforstopoverwrite = json.load(read_file_save)
 
-        writefiletosave =  str(savefileforstopoverwrite) + "\n" + str(ideadict)
+
+        writefiletosave =  str(savefileforstopoverwrite)  + str(ideadict)
 
         print(writefiletosave)
 
         with open('result.json', 'w') as fp:
-            json.dump(writefiletosave, fp)
+            json.dump(writefiletosave, fp, indent=2)
 
 else:
     with open('result.json', 'w') as fp:
-            json.dump(ideadict, fp)
+            json.dump(ideadict, fp, indent=2)
 
